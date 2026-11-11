@@ -38,7 +38,9 @@ input[type=range]{width:100%}
 .meta{font:10px var(--mono);color:var(--mid)}
 .cwrap{padding:16px;overflow:auto;max-height:calc(100vh - 150px)}
 canvas{display:block;margin:0 auto;cursor:crosshair}
-.label{padding:14px;position:sticky;top:16px}
+.label{padding:14px}
+.labelgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:700px){.labelgrid{grid-template-columns:1fr}}
 .lab{font:10px var(--mono);color:var(--mid);margin-bottom:8px}
 .big{font-size:44px;font-weight:600;line-height:1;margin-bottom:8px}
 .desc{font-size:13px;margin-bottom:10px}
@@ -52,7 +54,7 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 </head>
 <body>
 <header><div class="in">
-  <div class="logo">holes are never simply absences · a világ hírei · GDELT</div>
+  <div class="logo">holes are never simply absences · GDELT</div>
   <div class="status"><span class="dot" id="dot"></span><span id="stxt">betöltés…</span><button id="reload" title="adat újratöltése most">frissítés most</button></div>
 </div></header>
 
@@ -80,32 +82,22 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
       <span class="meta" id="meta"></span>
     </div>
     <div class="cwrap" id="cwrap"><canvas id="cv"></canvas></div>
+    <div class="label" style="border-top:1px solid var(--line)">
+      <div class="lab">címke</div>
+      <div class="labelgrid">
+        <div><div class="big" id="lBig">–</div><div class="desc" id="lDesc"></div><div class="lab" id="lHover"></div></div>
+        <div><div class="legend" id="legend" style="margin-top:0"></div><div class="ph">címke-szöveg</div></div>
+      </div>
+    </div>
   </div>
 
   <aside>
-    <div class="box label">
-      <div class="lab">címke</div>
-      <div class="big" id="lBig">–</div>
-      <div class="desc" id="lDesc"></div>
-      <div class="lab" id="lHover"></div>
-      <div class="legend" id="legend">
-      </div>
-      <div class="ph">címke-szöveg</div>
-    </div>
-
-    <div class="box" style="margin-top:16px">
+    <div class="box">
       <div class="head"><span>szövet beállításai</span></div>
       <div class="sec">
         <div class="lbl">szövés módja</div>
-        <div class="seg" id="mode"><button data-v="stripe" class="on">csík (kézi)</button><button data-v="hand">rács (kézi)</button><button data-v="jacq">Jacquard (gépi)</button></div>
+        <div class="seg" id="mode"><button data-v="hand" class="on">rács (kézi)</button><button data-v="jacq">Jacquard (gépi)</button></div>
         <div class="hint" id="modeHint"></div>
-      </div>
-      <div class="sec">
-        <div class="lbl">a hír mennyisége</div>
-        <div class="seg" id="levels"><button data-v="1" class="on">kötés / árnyalat szerint (4 fok)</button><button data-v="0">csak volt / nem volt</button></div>
-        <div class="lbl" style="margin-top:10px">„hangos” ettől a cikkszámtól</div>
-        <div class="rng"><input type="range" id="loud" min="3" max="30" value="4"><output id="loudV">4</output></div>
-        <div class="hint">0 cikk = csend · 1 cikk = halk · 2-től = közepes · a beállított számtól = hangos</div>
       </div>
       <div class="sec">
         <div class="lbl" id="resLbl">egy cella ideje (egy sor mindig egy nap)</div>
@@ -142,10 +134,11 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 const $=s=>document.querySelector(s);
 const SLOTS=96;
 let RAW=null,CATS=[],D=null,G=null,lastLoad=null;
-let S={levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'stripe',res:4,th:1,den:3,px:6,wid:12,q:''};
+let S={levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'hand',res:4,th:1,den:3,px:6,wid:12,q:''};
 const MODES={stripe:{res:4,th:1,den:3,px:6},hand:{res:4,th:1,den:3,px:10},jacq:{res:1,th:10,den:12,px:2}};
 const unitTxt=r=>({1:'15 perc',2:'30 perc',4:'1 óra',8:'2 óra',16:'4 óra'})[r]||'';
 try{Object.assign(S,JSON.parse(localStorage.getItem('holes-gdelt')||'{}'));}catch(e){}
+if(S.mode==='stripe'||!['hand','jacq'].includes(S.mode)){S.mode='hand';Object.assign(S,{res:4,th:1,den:3,px:10});}S.levels=1;S.loud=4;
 const save=()=>{try{localStorage.setItem('holes-gdelt',JSON.stringify(S));}catch(e){}};
 
 function status(t,c){$('#stxt').textContent=t;$('#dot').className='dot'+(c?' '+c:'');}
@@ -195,7 +188,7 @@ function satin(y,x,warp){const on=((x*2+y)%5)===0;return warp?(on?0:1):(on?1:0);
 function lv(c){if(!c||c.state==='future')return -1;if(c.state!=='hit')return 0;if(!S.levels)return 3;return c.h>=S.loud?3:c.h>=2?2:1;}
 // 0 csend: vetülékes atlasz (világos) · 1 halk: 2/2 sávoly · 2 közepes: 3/1 sávoly · 3 hangos: láncos atlasz (sötét)
 function threadUp(L,y,x){return L===3?satin(y,x,true):L===2?((x+y)%4<3?1:0):L===1?((x+y)%4<2?1:0):satin(y,x,false);}
-const TONE=['#efebe4','#c4bbae','#77706a','#262626'],TONED=['#ffffff','#c8c8c8','#6f6f6f','#111111'],SYM=['□','░','▒','■'],LNAME=['csend','halk','közepes','hangos'];
+const TONE=['#ffffff','#c8c8c8','#6f6f6f','#111111'],TONED=['#ffffff','#c8c8c8','#6f6f6f','#111111'],SYM=['□','░','▒','■'],LNAME=['csend','halk','közepes','hangos'];
 
 // kulcsszólista
 function kwCounts(){
@@ -253,8 +246,7 @@ function drawGrid(){
   for(let hr=0;hr<24;hr+=6)g.fillText(String(hr).padStart(2,'0')+':00',LW+hr*4/S.res*cell,3);
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const st=D.grid[r][c].state;if(st==='future')continue;
     if(S.view==='cloth'&&S.mode==='hand'){const X=LW+c*cell,Y=TOP+r*cell,L=lv(D.grid[r][c]),dark=L>=2,rib=Math.max(3,Math.round(PX*0.6));
-      g.fillStyle=TONE[L];g.fillRect(X,Y,cell,cell);
-      for(let yy=0;yy<cell;yy+=rib){g.fillStyle=dark?'rgba(255,255,255,.10)':'rgba(0,0,0,.07)';g.fillRect(X,Y+yy,cell,1);g.fillStyle=dark?'rgba(0,0,0,.25)':'rgba(255,255,255,.6)';g.fillRect(X,Y+yy+rib-1,cell,1);}
+      g.fillStyle=TONE[L];g.fillRect(X,Y,cell,cell);if(cell>=6){g.strokeStyle='#e4e4e4';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}
       continue;}
     if(S.view==='cloth'){for(let i=0;i<TH;i++)for(let j=0;j<TH;j++){const y=r*TH+i,x=c*TH+j;g.fillStyle=threadUp(lv(D.grid[r][c]),y,x)?'#262626':'#ececec';g.fillRect(LW+x*PX,TOP+y*PX,PX,PX);}}
     else{const X=LW+c*cell,Y=TOP+r*cell,L=lv(D.grid[r][c]);if(L>0){g.fillStyle=TONED[L];g.fillRect(X,Y,cell,cell);}else if(cell>=4){g.strokeStyle='#e2e2e2';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}}}
@@ -279,16 +271,16 @@ function common(){
   $('#upd').innerHTML=`<span>legutolsó adat</span><span>${fmtT(lastSlot)}</span><span>oldal betöltve</span><span>${lastLoad.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span><span>következő újratöltés</span><span>${new Date(lastLoad.getTime()+9e5).toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span>`;
   // vezérlők állapota
   [['#span','span'],['#view','view'],['#res','res']].forEach(([id,k])=>[...$(id).children].forEach(b=>b.classList.toggle('on',String(S[k])===b.dataset.v)));
-  const lg=S.levels?[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,`közepes: 2–${S.loud-1} cikk`],[3,`hangos: ${S.loud} cikk vagy több`]]:[[3,'volt hír a témáról'],[0,'csend: egy hír sem (lyuk)']];
-  $('#legend').innerHTML=lg.map(([L,t])=>`<div class="sw" style="background:${S.mode==='jacq'?TONED[L]:TONE[L]}"></div><div>${t}</div>`).join('');
-  [...$('#levels').children].forEach(b=>b.classList.toggle('on',String(S.levels)===b.dataset.v));$('#loud').value=S.loud;$('#loudV').textContent=S.loud;
+  const lg=[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,'közepes: 2–3 cikk'],[3,'hangos: 4 vagy több cikk']];
+  $('#legend').innerHTML=lg.map(([L,t])=>`<div class="sw" style="background:${TONED[L]}"></div><div>${t}${S.mode==='jacq'?' · '+['vetülékes atlasz','2/2 sávoly','3/1 sávoly','láncos atlasz'][L]:''}</div>`).join('');
+  
   [...$('#mode').children].forEach(b=>b.classList.toggle('on',S.mode===b.dataset.v));
   const st=S.mode==='stripe';$('#widBox').style.display=st?'':'none';
   $('#resLbl').textContent=st?'egy vetülékfonal ideje (a csík időrendben, fentről lefelé)':'egy cella ideje (egy sor mindig egy nap)';
   $('#thLbl').textContent=st?'egy időszelet = hány vetülékfonal (vastagabb csík)':'egy cella = hány × hány fonal';
   $('#denLbl').textContent=st?'fonalsűrűség (vetülék / cm), chunky fonalnál kb. 2–4':'fonalsűrűség (fonal / cm)';
   $('#list').style.display=st?'':'none';$('#chart').style.display=S.mode==='hand'?'':'none';$('#bmp').style.display=S.mode==='jacq'?'':'none';
-  $('#modeHint').textContent=st?'Csíkos kézi szövés: minden vetülékfonal egy időszelet, időrendben. Sötét fonal, ha abban volt hír, világos, ha csend. Bármilyen egyszerű szövőszéken, vászonkötéssel szőhető, felszedés nélkül.':S.mode==='hand'?'Kézi szövés vastag fonallal: egy cella egy kis folt, amit sorról sorra te szősz ki (pl. gobelin vagy felszedéses dupla szövés). A méret becslés, a technikától és a fonaltól függ.':'Digitális Jacquard-szövőszék (pl. TC2): minden fonalat a gép emel, atlaszkötéssel.';
+  $('#modeHint').textContent=S.mode==='hand'?'Kézi szövés vastag fonallal: egy cella egy kis folt, amit sorról sorra te szősz ki (pl. gobelin vagy felszedéses dupla szövés). Négy fonalszín a fehértől a feketéig. A méret becslés, a technikától és a fonaltól függ.':'Digitális Jacquard-szövőszék (pl. TC2): minden fonalat a gép emel, atlaszkötéssel.';
   $('#exHint').textContent=st?'A szövési lista naponta egy sor: ■ = sötét fonal, □ = világos. Mellette ugyanez fonalcsoportokra összevonva, szövés közben követhető.':S.mode==='hand'?'A mintarajz egy nyomtatható kockás rács: soronként egy nap, sötét = hír, üres = csend. A szövőszék mellé teheted.':'BMP: 1 pixel = 1 fonalkeresztezés, fekete = lánc felül.';
   $('#spanN').value=[7,14,28,91,182,365,9999].includes(S.span)?'':S.span;
   $('#th').value=S.th;$('#thV').textContent=st?S.th:S.th+'×'+S.th;$('#wid').value=S.wid;$('#widV').textContent=S.wid;$('#den').value=S.den;$('#denV').textContent=S.den;$('#px').value=S.px;$('#pxV').textContent=S.px;
@@ -303,8 +295,7 @@ cv.addEventListener('mousemove',e=>{if(!G)return;const r=cv.getBoundingClientRec
 cv.addEventListener('mouseleave',()=>tip.style.display='none');
 
 function seg(id,key,num){$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;save();draw();};}
-seg('#span','span',true);seg('#levels','levels',true);
-$('#loud').addEventListener('input',e=>{S.loud=+e.target.value;save();draw();});
+seg('#span','span',true);
 $('#spanN').addEventListener('change',e=>{const v=Math.round(+e.target.value);if(v>0){S.span=v;save();draw();}});
 $('#mode').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.mode=b.dataset.v;Object.assign(S,MODES[S.mode]);save();draw();};seg('#view','view');seg('#res','res',true);
 [['#th','th'],['#den','den'],['#px','px'],['#wid','wid']].forEach(([id,k])=>$(id).addEventListener('input',e=>{S[k]=+e.target.value;save();draw();}));
