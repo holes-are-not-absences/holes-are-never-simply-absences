@@ -2,7 +2,7 @@ name: GDELT gyűjtés
 
 on:
   schedule:
-    - cron: "17 * * * *"        # óránként (a GitHub néha késve indítja, a program ezt pótolja)
+    - cron: "7,22,37,52 * * * *"   # 15 percenként (a GitHub néha késve indítja, a program ezt pótolja)
   workflow_dispatch:
     inputs:
       backfill_days:
@@ -28,17 +28,22 @@ jobs:
           python-version: "3.12"
 
       - name: Adatgyűjtés
-        run: python collect.py --backfill-days "${{ github.event.inputs.backfill_days || '0' }}"
+        run: python -u collect.py --backfill-days "${{ github.event.inputs.backfill_days || '0' }}"
 
       - name: Mentés a tárolóba
+        env:
+          BF: ${{ github.event.inputs.backfill_days || '0' }}
         run: |
           git config user.name "gdelt-gyujto"
           git config user.email "actions@users.noreply.github.com"
-          git add data/counts.csv
-          if git diff --cached --quiet; then
-            echo "nincs új adat"
-          else
+          for i in 1 2 3; do
+            git add data/counts.csv
+            if git diff --cached --quiet; then echo "nincs új adat"; exit 0; fi
             git commit -m "adat: $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-            git push
-          fi
+            if git push; then exit 0; fi
+            echo "Ütközés egy másik futással: a legfrissebb adatra építve újraszámolom."
+            git fetch origin "${GITHUB_REF_NAME}"
+            git reset --hard "origin/${GITHUB_REF_NAME}"
+            python -u collect.py --backfill-days "$BF"
+          done
+          exit 1
