@@ -62,6 +62,7 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
     <div class="sec">
       <div class="lbl">kiválasztva</div>
       <div class="sel" id="selName">minden téma együtt</div>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin:0 0 8px;font:11px var(--mono);color:var(--ink);cursor:pointer"><input type="checkbox" id="women" style="margin-top:2px"><span>csak a nőket említő cikkek<br><span style="color:var(--mid);font-size:10px">a GDELT a teljes szövegből nőkre utaló szereplőt talált, vagy a cím nőkre utal</span></span></label>
       <input type="search" id="q" placeholder="keresés a listában…">
       <div class="kwlist" id="kwlist"></div>
       <div class="hint">csak a listában szereplő, előre meghatározott kifejezések választhatók (keywords.txt). Témára kattintva a teljes témakör, kulcsszóra kattintva csak az az egy. A szám a találatok száma a kiválasztott időszakban.</div>
@@ -87,9 +88,7 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
       <div class="big" id="lBig">–</div>
       <div class="desc" id="lDesc"></div>
       <div class="lab" id="lHover"></div>
-      <div class="legend">
-        <div class="sw" style="background:#262626"></div><div>volt hír a témáról</div>
-        <div class="sw" style="background:#ececec"></div><div>csend: egy hír sem (lyuk)</div>
+      <div class="legend" id="legend">
       </div>
       <div class="ph">címke-szöveg</div>
     </div>
@@ -98,24 +97,32 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
       <div class="head"><span>szövet beállításai</span></div>
       <div class="sec">
         <div class="lbl">szövés módja</div>
-        <div class="seg" id="mode"><button data-v="hand" class="on">kézi</button><button data-v="jacq">Jacquard (gépi)</button></div>
+        <div class="seg" id="mode"><button data-v="stripe" class="on">csík (kézi)</button><button data-v="hand">rács (kézi)</button><button data-v="jacq">Jacquard (gépi)</button></div>
         <div class="hint" id="modeHint"></div>
       </div>
       <div class="sec">
-        <div class="lbl">egy cella ideje (egy sor mindig egy nap)</div>
-        <div class="seg" id="res"><button data-v="1" class="on">15 perc</button><button data-v="2">30 perc</button><button data-v="4">1 óra</button><button data-v="8">2 óra</button></div>
+        <div class="lbl">a hír mennyisége</div>
+        <div class="seg" id="levels"><button data-v="1" class="on">kötés / árnyalat szerint (4 fok)</button><button data-v="0">csak volt / nem volt</button></div>
+        <div class="lbl" style="margin-top:10px">„hangos” ettől a cikkszámtól</div>
+        <div class="rng"><input type="range" id="loud" min="3" max="30" value="4"><output id="loudV">4</output></div>
+        <div class="hint">0 cikk = csend · 1 cikk = halk · 2-től = közepes · a beállított számtól = hangos</div>
       </div>
       <div class="sec">
-        <div class="lbl">egy cella = hány × hány fonal</div>
-        <div class="rng"><input type="range" id="th" min="1" max="10" value="3"><output id="thV">3×3</output></div>
-        <div class="lbl">fonalsűrűség (fonal / cm)</div>
+        <div class="lbl" id="resLbl">egy cella ideje (egy sor mindig egy nap)</div>
+        <div class="seg" id="res"><button data-v="1" class="on">15 perc</button><button data-v="2">30 perc</button><button data-v="4">1 óra</button><button data-v="8">2 óra</button><button data-v="16">4 óra</button></div>
+      </div>
+      <div class="sec">
+        <div class="lbl" id="thLbl">egy cella = hány × hány fonal</div>
+        <div class="rng"><input type="range" id="th" min="1" max="20" value="3"><output id="thV">3×3</output></div>
+        <div class="lbl" id="denLbl">fonalsűrűség (fonal / cm)</div>
         <div class="rng"><input type="range" id="den" min="1" max="40" value="12"><output id="denV">12</output></div>
         <div class="lbl">nagyítás a képernyőn (pixel / fonal)</div>
         <div class="rng"><input type="range" id="px" min="1" max="16" value="3"><output id="pxV">3</output></div>
+        <div id="widBox"><div class="lbl">a csík szélessége (cm)</div><div class="rng"><input type="range" id="wid" min="3" max="60" value="12"><output id="widV">12</output></div></div>
         <div class="nums" id="size"></div>
       </div>
       <div class="sec">
-        <div class="row"><button id="chart">mintarajz (PNG)</button><button id="bmp">BMP (Jacquard)</button></div>
+        <div class="row"><button id="list">szövési lista (TXT)</button><button id="chart">mintarajz (PNG)</button><button id="bmp">BMP (Jacquard)</button></div>
         <div class="hint" id="exHint"></div>
       </div>
     </div>
@@ -135,8 +142,9 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 const $=s=>document.querySelector(s);
 const SLOTS=96;
 let RAW=null,CATS=[],D=null,G=null,lastLoad=null;
-let S={sel:'_osszes',span:28,view:'cloth',mode:'hand',res:4,th:1,den:3,px:10,q:''};
-const MODES={hand:{res:4,th:1,den:3,px:10},jacq:{res:1,th:3,den:12,px:3}};
+let S={levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'stripe',res:4,th:1,den:3,px:6,wid:12,q:''};
+const MODES={stripe:{res:4,th:1,den:3,px:6},hand:{res:4,th:1,den:3,px:10},jacq:{res:1,th:10,den:12,px:2}};
+const unitTxt=r=>({1:'15 perc',2:'30 perc',4:'1 óra',8:'2 óra',16:'4 óra'})[r]||'';
 try{Object.assign(S,JSON.parse(localStorage.getItem('holes-gdelt')||'{}'));}catch(e){}
 const save=()=>{try{localStorage.setItem('holes-gdelt',JSON.stringify(S));}catch(e){}};
 
@@ -158,12 +166,12 @@ async function load(){
       if(l.startsWith('[')&&l.endsWith(']')){cur={name:l.slice(1,-1).trim(),kws:[]};CATS.push(cur);return;}
       if(cur)cur.kws.push(l.toLowerCase().replace(/[-_/+.%]+/g,' ').trim());});
     RAW={head,rows};lastLoad=new Date();
-    if(!head.includes(S.sel))S.sel='_osszes';
+    if(!head.includes(S.sel))S.sel='_osszes';if(S.women&&!head.includes('n|_osszes'))msg('A nőkre szűrt adat még nincs kiszámolva: töltsd fel az új collect.py-t, és futtasd a gyűjtőt visszatöltéssel (pl. 28).');
     draw();status('adat betöltve','on');msg('');
   }catch(e){status('nincs adat','err');msg(e.message+(location.protocol==='file:'?' Ezt az oldalt a GitHub Pages címén kell megnyitni.':''));}
 }
-function colOf(){return S.sel;}
-function selLabel(){if(S.sel==='_osszes')return'minden téma együtt';if(S.sel.startsWith('tema:'))return'téma: '+S.sel.slice(5);return S.sel;}
+function colOf(){return (S.women?'n|':'')+S.sel;}
+function selLabel(){const w=S.women?' (nőket említő cikkek)':'';if(S.sel==='_osszes')return'minden téma együtt'+w;if(S.sel.startsWith('tema:'))return'téma: '+S.sel.slice(5)+w;return S.sel+w;}
 
 function build(){
   const col=colOf(),map=new Map(RAW.rows.map(r=>[r.slot,r]));
@@ -184,7 +192,10 @@ function build(){
   return{days,grid,cols};
 }
 function satin(y,x,warp){const on=((x*2+y)%5)===0;return warp?(on?0:1):(on?1:0);}
-function threadUp(state,y,x){return state==='hit'?satin(y,x,true):satin(y,x,false);}
+function lv(c){if(!c||c.state==='future')return -1;if(c.state!=='hit')return 0;if(!S.levels)return 3;return c.h>=S.loud?3:c.h>=2?2:1;}
+// 0 csend: vetülékes atlasz (világos) · 1 halk: 2/2 sávoly · 2 közepes: 3/1 sávoly · 3 hangos: láncos atlasz (sötét)
+function threadUp(L,y,x){return L===3?satin(y,x,true):L===2?((x+y)%4<3?1:0):L===1?((x+y)%4<2?1:0):satin(y,x,false);}
+const TONE=['#efebe4','#c4bbae','#77706a','#262626'],TONED=['#ffffff','#c8c8c8','#6f6f6f','#111111'],SYM=['□','░','▒','■'],LNAME=['csend','halk','közepes','hangos'];
 
 // kulcsszólista
 function kwCounts(){
@@ -195,8 +206,8 @@ function kwCounts(){
   return out;
 }
 function renderList(){
-  const q=S.q.trim().toLowerCase(),cnt=kwCounts(),has=c=>RAW&&RAW.head.includes(c);
-  const n=c=>has(c)?`<small>${(cnt[c]||0).toLocaleString('hu-HU')}</small>`:'<small>még nincs adat</small>';
+  const q=S.q.trim().toLowerCase(),cnt=kwCounts(),pre=S.women?'n|':'',has=c=>RAW&&RAW.head.includes(pre+c);
+  const n=c=>has(c)?`<small>${(cnt[pre+c]||0).toLocaleString('hu-HU')}</small>`:'<small>még nincs adat</small>';
   let h=`<div class="cat ${S.sel==='_osszes'?'on':''}" data-c="_osszes"><span>minden téma együtt</span>${n('_osszes')}</div>`;
   CATS.forEach(cat=>{const kws=cat.kws.filter(k=>!q||k.includes(q)||cat.name.toLowerCase().includes(q));if(!kws.length)return;
     h+=`<div class="cat ${S.sel==='tema:'+cat.name?'on':''}" data-c="tema:${cat.name}"><span>${cat.name}</span>${n('tema:'+cat.name)}</div>`;
@@ -205,70 +216,122 @@ function renderList(){
 }
 $('#kwlist').onclick=e=>{const el=e.target.closest('[data-c]');if(!el)return;S.sel=el.dataset.c;save();draw();};
 $('#q').oninput=e=>{S.q=e.target.value;renderList();};
+$('#women').onchange=e=>{S.women=e.target.checked;save();draw();};
 
 const cv=$('#cv'),g=cv.getContext('2d');
 function draw(){
   if(!RAW)return;renderList();D=build();const rows=D.grid.length,cols=D.cols;
   if(!rows){msg('Még nincs adat.');return;}
+  if(S.mode==='stripe')drawStripe();else drawGrid();
+  common();
+}
+function picksOf(){const P=[];D.grid.forEach((row,r)=>row.forEach(c=>{if(c.state!=='future')P.push({...c,day:r});}));return P;}
+function drawStripe(){
+  const P=picksOf(),ph=S.th*S.px,BW=Math.max(60,Math.min(420,Math.round(S.wid*S.den*S.px))),LW=96,TOP=24,FR=28,W=LW+BW+40,H=TOP+FR*2+P.length*ph+8,dpr=devicePixelRatio||1;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#fff';g.fillRect(0,0,W,H);
+  const y0=TOP+FR;G={stripe:true,LW,TOP:y0,ph,n:P.length,W,BW,P};
+  // rojt
+  g.strokeStyle='#cfc9bf';g.lineWidth=1.5;for(let x=LW+4;x<LW+BW;x+=Math.max(5,S.px*1.2)){g.beginPath();g.moveTo(x,TOP+2);g.lineTo(x+(x%3)-1,y0);g.stroke();g.beginPath();g.moveTo(x,y0+P.length*ph);g.lineTo(x-(x%3)+1,y0+P.length*ph+FR-2);g.stroke();}
+  const wp=Math.max(3,Math.round(S.px*0.9));
+  P.forEach((c,i)=>{const Y=y0+i*ph,L=lv(c),dark=L>=2;
+    if(S.view==='cloth'){g.fillStyle=TONE[L];g.fillRect(LW,Y,BW,ph);
+      if(ph>=3){for(let x=LW+((i%2)*wp);x<LW+BW;x+=wp*2){g.fillStyle=dark?'rgba(255,255,255,.08)':'rgba(0,0,0,.06)';g.fillRect(x,Y,wp,ph);}
+        g.fillStyle=dark?'rgba(0,0,0,.35)':'rgba(255,255,255,.7)';g.fillRect(LW,Y+ph-1,BW,1);}}
+    else{g.fillStyle=TONED[L];g.fillRect(LW,Y,BW,ph);}});
+  if(S.view!=='cloth'){g.strokeStyle='#ccc';g.lineWidth=1;g.strokeRect(LW+.5,y0+.5,BW-1,P.length*ph-1);}
+  // napjelek
+  g.font='10px ui-monospace,Menlo,monospace';g.textBaseline='middle';g.textAlign='right';
+  const perDay=96/S.res*ph,step=perDay>=12?1:Math.ceil(12/perDay);let last=-1;
+  P.forEach((c,i)=>{if(c.day!==last){last=c.day;if(c.day%step===0){const d=D.days[c.day],Y=y0+i*ph;g.fillStyle='#8a8a8a';g.fillText(`${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}${d.getDay()===1?' H':''}`,LW-12,Y+Math.min(6,perDay/2));g.strokeStyle='#bbb';g.beginPath();g.moveTo(LW-8,Y+.5);g.lineTo(LW-2,Y+.5);g.stroke();}}});
+  g.textAlign='left';g.textBaseline='top';
+}
+function drawGrid(){
+  const rows=D.grid.length,cols=D.cols;
   const TH=S.th,PX=S.px,LW=72,TOP=18,cell=TH*PX,W=LW+cols*cell+1,H=TOP+rows*cell+1,dpr=devicePixelRatio||1;
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#fff';g.fillRect(0,0,W,H);G={LW,TOP,cell,rows,cols,W};
   g.font='10px ui-monospace,Menlo,monospace';g.textBaseline='top';g.fillStyle='#8a8a8a';
   for(let hr=0;hr<24;hr+=6)g.fillText(String(hr).padStart(2,'0')+':00',LW+hr*4/S.res*cell,3);
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const st=D.grid[r][c].state;if(st==='future')continue;
-    if(S.view==='cloth'&&S.mode==='hand'){const X=LW+c*cell,Y=TOP+r*cell,dark=st==='hit',rib=Math.max(3,Math.round(PX*0.6));
-      g.fillStyle=dark?'#2a2a2a':'#efebe4';g.fillRect(X,Y,cell,cell);
+    if(S.view==='cloth'&&S.mode==='hand'){const X=LW+c*cell,Y=TOP+r*cell,L=lv(D.grid[r][c]),dark=L>=2,rib=Math.max(3,Math.round(PX*0.6));
+      g.fillStyle=TONE[L];g.fillRect(X,Y,cell,cell);
       for(let yy=0;yy<cell;yy+=rib){g.fillStyle=dark?'rgba(255,255,255,.10)':'rgba(0,0,0,.07)';g.fillRect(X,Y+yy,cell,1);g.fillStyle=dark?'rgba(0,0,0,.25)':'rgba(255,255,255,.6)';g.fillRect(X,Y+yy+rib-1,cell,1);}
       continue;}
-    if(S.view==='cloth'){for(let i=0;i<TH;i++)for(let j=0;j<TH;j++){const y=r*TH+i,x=c*TH+j;g.fillStyle=threadUp(st,y,x)?'#262626':'#ececec';g.fillRect(LW+x*PX,TOP+y*PX,PX,PX);}}
-    else{const X=LW+c*cell,Y=TOP+r*cell;if(st==='hit'){g.fillStyle='#111';g.fillRect(X,Y,cell,cell);}else if(cell>=4){g.strokeStyle='#e2e2e2';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}}}
+    if(S.view==='cloth'){for(let i=0;i<TH;i++)for(let j=0;j<TH;j++){const y=r*TH+i,x=c*TH+j;g.fillStyle=threadUp(lv(D.grid[r][c]),y,x)?'#262626':'#ececec';g.fillRect(LW+x*PX,TOP+y*PX,PX,PX);}}
+    else{const X=LW+c*cell,Y=TOP+r*cell,L=lv(D.grid[r][c]);if(L>0){g.fillStyle=TONED[L];g.fillRect(X,Y,cell,cell);}else if(cell>=4){g.strokeStyle='#e2e2e2';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}}}
   g.fillStyle='#8a8a8a';const step=cell>=11?1:Math.ceil(11/cell);
   D.days.forEach((d,r)=>{if(r%step===0||r===rows-1)g.fillText(`${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}${d.getDay()===1?' H':''}`,0,TOP+r*cell+Math.max(0,(cell-10)/2));});
+}
+function common(){
+  const rows=D.grid.length,cols=D.cols,TH=S.th;
   // számok, címke
   let slots=0,hit=0,arts=0,tot=0;D.grid.forEach(row=>row.forEach(c=>{if(c.state==='future')return;slots++;tot+=c.total;if(c.state==='hit'){hit++;arts+=c.h;}}));
-  const unit=['15 perc','30 perc','1 óra','','2 óra'][[1,2,4,0,8].indexOf(S.res)]||'';
+  const unit=unitTxt(S.res);
   const p=slots?hit/slots*100:0;$('#lBig').textContent=p.toFixed(1).replace('.',',')+'%';
-  $('#lDesc').textContent=`Az időszeletek (${unit}) ${p.toFixed(1).replace('.',',')}%-ában jelent meg legalább egy angol nyelvű online hír erről: ${selLabel()}. A többi csend. Összesen ${arts.toLocaleString('hu-HU')} cikk, a figyelt hírek ${(tot?arts/tot*100:0).toFixed(3).replace('.',',')}%-a.`;
+  $('#lDesc').textContent=`Az időszeletek (${unit}) ${p.toFixed(1).replace('.',',')}%-ában jelent meg legalább egy angol nyelvű online hír erről: ${selLabel()}. A többi csend. Összesen ${arts.toLocaleString('hu-HU')} cikk, a figyelt hírek ${(tot?arts/tot*100:0).toFixed(3).replace('.',',')}%-a.${S.women?' Csak azok a cikkek számítanak, amelyek nőket említenek.':''}`;
+  if(S.mode==='stripe'){const n=picksOf().length*TH,ends=Math.round(S.wid*S.den);
+    $('#meta').textContent=`${rows} nap · 1 időszelet (${unit}) = ${TH} vetülékfonal · sötét = volt hír, világos = csend`;
+    $('#size').innerHTML=`<span>vetülékfonal (sor)</span><span>${n.toLocaleString('hu-HU')}</span><span>láncfonal (kb.)</span><span>${ends}</span><span>szélesség</span><span>${S.wid} cm</span><span>hosszúság (kb.)</span><span>${(n/S.den).toFixed(0)} cm</span>`;}
+  else{
   $('#meta').textContent=`${rows} nap · 1 sor = 1 nap · 1 cella = ${unit} = ${TH}×${TH} fonal`;
   const ends=cols*TH,picks=rows*TH;
-  $('#size').innerHTML=`<span>láncfonal</span><span>${ends}</span><span>vetülékfonal</span><span>${picks}</span><span>szélesség</span><span>${(ends/S.den).toFixed(1).replace('.',',')} cm</span><span>hosszúság</span><span>${(picks/S.den).toFixed(1).replace('.',',')} cm</span>`;
+  $('#size').innerHTML=`<span>láncfonal</span><span>${ends}</span><span>vetülékfonal</span><span>${picks}</span><span>szélesség</span><span>${(ends/S.den).toFixed(1).replace('.',',')} cm</span><span>hosszúság</span><span>${(picks/S.den).toFixed(1).replace('.',',')} cm</span>`;}
   const lastSlot=slotDate(RAW.rows[RAW.rows.length-1].slot);
   $('#upd').innerHTML=`<span>legutolsó adat</span><span>${fmtT(lastSlot)}</span><span>oldal betöltve</span><span>${lastLoad.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span><span>következő újratöltés</span><span>${new Date(lastLoad.getTime()+9e5).toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span>`;
   // vezérlők állapota
   [['#span','span'],['#view','view'],['#res','res']].forEach(([id,k])=>[...$(id).children].forEach(b=>b.classList.toggle('on',String(S[k])===b.dataset.v)));
+  const lg=S.levels?[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,`közepes: 2–${S.loud-1} cikk`],[3,`hangos: ${S.loud} cikk vagy több`]]:[[3,'volt hír a témáról'],[0,'csend: egy hír sem (lyuk)']];
+  $('#legend').innerHTML=lg.map(([L,t])=>`<div class="sw" style="background:${S.mode==='jacq'?TONED[L]:TONE[L]}"></div><div>${t}</div>`).join('');
+  [...$('#levels').children].forEach(b=>b.classList.toggle('on',String(S.levels)===b.dataset.v));$('#loud').value=S.loud;$('#loudV').textContent=S.loud;
   [...$('#mode').children].forEach(b=>b.classList.toggle('on',S.mode===b.dataset.v));
-  $('#modeHint').textContent=S.mode==='hand'?'Kézi szövés vastag fonallal: egy cella egy kis folt, amit sorról sorra te szősz ki (pl. gobelin vagy felszedéses dupla szövés). A méret becslés, a technikától és a fonaltól függ.':'Digitális Jacquard-szövőszék (pl. TC2): minden fonalat a gép emel, atlaszkötéssel.';
-  $('#exHint').textContent=S.mode==='hand'?'A mintarajz egy nyomtatható kockás rács: soronként egy nap, sötét = hír, üres = csend. A szövőszék mellé teheted.':'BMP: 1 pixel = 1 fonalkeresztezés, fekete = lánc felül.';
+  const st=S.mode==='stripe';$('#widBox').style.display=st?'':'none';
+  $('#resLbl').textContent=st?'egy vetülékfonal ideje (a csík időrendben, fentről lefelé)':'egy cella ideje (egy sor mindig egy nap)';
+  $('#thLbl').textContent=st?'egy időszelet = hány vetülékfonal (vastagabb csík)':'egy cella = hány × hány fonal';
+  $('#denLbl').textContent=st?'fonalsűrűség (vetülék / cm), chunky fonalnál kb. 2–4':'fonalsűrűség (fonal / cm)';
+  $('#list').style.display=st?'':'none';$('#chart').style.display=S.mode==='hand'?'':'none';$('#bmp').style.display=S.mode==='jacq'?'':'none';
+  $('#modeHint').textContent=st?'Csíkos kézi szövés: minden vetülékfonal egy időszelet, időrendben. Sötét fonal, ha abban volt hír, világos, ha csend. Bármilyen egyszerű szövőszéken, vászonkötéssel szőhető, felszedés nélkül.':S.mode==='hand'?'Kézi szövés vastag fonallal: egy cella egy kis folt, amit sorról sorra te szősz ki (pl. gobelin vagy felszedéses dupla szövés). A méret becslés, a technikától és a fonaltól függ.':'Digitális Jacquard-szövőszék (pl. TC2): minden fonalat a gép emel, atlaszkötéssel.';
+  $('#exHint').textContent=st?'A szövési lista naponta egy sor: ■ = sötét fonal, □ = világos. Mellette ugyanez fonalcsoportokra összevonva, szövés közben követhető.':S.mode==='hand'?'A mintarajz egy nyomtatható kockás rács: soronként egy nap, sötét = hír, üres = csend. A szövőszék mellé teheted.':'BMP: 1 pixel = 1 fonalkeresztezés, fekete = lánc felül.';
   $('#spanN').value=[7,14,28,91,182,365,9999].includes(S.span)?'':S.span;
-  $('#th').value=S.th;$('#thV').textContent=S.th+'×'+S.th;$('#den').value=S.den;$('#denV').textContent=S.den;$('#px').value=S.px;$('#pxV').textContent=S.px;
+  $('#th').value=S.th;$('#thV').textContent=st?S.th:S.th+'×'+S.th;$('#wid').value=S.wid;$('#widV').textContent=S.wid;$('#den').value=S.den;$('#denV').textContent=S.den;$('#px').value=S.px;$('#pxV').textContent=S.px;
 }
 const tip=$('#tip');
-cv.addEventListener('mousemove',e=>{if(!G)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)-G.LW,y=(e.clientY-r.top)-G.TOP,row=Math.floor(y/G.cell),col=Math.floor(x/G.cell);
-  if(row<0||row>=G.rows||col<0||col>=G.cols){tip.style.display='none';return;}const c=D.grid[row][col];
+cv.addEventListener('mousemove',e=>{if(!G)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)-G.LW,y=(e.clientY-r.top)-G.TOP;let c;
+  if(G.stripe){const i=Math.floor(y/G.ph);if(i<0||i>=G.n||x<0||x>G.BW){tip.style.display='none';return;}c=G.P[i];}
+  else{const row=Math.floor(y/G.cell),col=Math.floor(x/G.cell);if(row<0||row>=G.rows||col<0||col>=G.cols){tip.style.display='none';return;}c=D.grid[row][col];}
   const t=c.t.toLocaleString('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   const txt=c.state==='future'?'még nem gyűlt össze':c.state==='hit'?`${c.h} cikk a témáról / ${c.total.toLocaleString('hu-HU')} összes`:`csend · ${c.total.toLocaleString('hu-HU')} cikk, egy sem a témáról`;
   tip.innerHTML=`${t}<br>${txt}`;$('#lHover').innerHTML=`${t}<br>${txt}`;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';});
 cv.addEventListener('mouseleave',()=>tip.style.display='none');
 
 function seg(id,key,num){$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;save();draw();};}
-seg('#span','span',true);
+seg('#span','span',true);seg('#levels','levels',true);
+$('#loud').addEventListener('input',e=>{S.loud=+e.target.value;save();draw();});
 $('#spanN').addEventListener('change',e=>{const v=Math.round(+e.target.value);if(v>0){S.span=v;save();draw();}});
 $('#mode').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.mode=b.dataset.v;Object.assign(S,MODES[S.mode]);save();draw();};seg('#view','view');seg('#res','res',true);
-[['#th','th'],['#den','den'],['#px','px']].forEach(([id,k])=>$(id).addEventListener('input',e=>{S[k]=+e.target.value;save();draw();}));
+[['#th','th'],['#den','den'],['#px','px'],['#wid','wid']].forEach(([id,k])=>$(id).addEventListener('input',e=>{S[k]=+e.target.value;save();draw();}));
 $('#reload').onclick=load;
-$('#q').value=S.q;
+$('#q').value=S.q;$('#women').checked=S.women;
 
-$('#chart').onclick=()=>{if(!D||!D.grid.length)return;const C=16,L=96,T=64,B=40,rows=D.grid.length,cols=D.cols,H=T+rows*C+B;const unit0=['15 perc','30 perc','1 óra','','2 óra'][[1,2,4,0,8].indexOf(S.res)]||'',sub=`1 sor = 1 nap · 1 cella = ${unit0} · sötét = volt hír, üres = csend · ${D.days[0].toLocaleDateString('hu-HU')} – ${D.days[rows-1].toLocaleDateString('hu-HU')}`;const W=Math.max(L+cols*C+24,L+sub.length*7+24);
+$('#list').onclick=()=>{if(!D||!D.grid.length)return;const unit=unitTxt(S.res),L=[];let n=0;
+  L.push(`holes are never simply absences · ${selLabel()}`,`csíkos szövés · 1 időszelet = ${unit} = ${S.th} vetülékfonal · ${S.levels?`□ csend (0) · ░ halk (1 cikk) · ▒ közepes (2–${S.loud-1}) · ■ hangos (${S.loud}+), négy fonalszín a világostól a sötétig`:'■ = sötét (volt hír) · □ = világos (csend)'}`,`időszak: ${D.days[0].toLocaleDateString('hu-HU')} – ${D.days[D.days.length-1].toLocaleDateString('hu-HU')} · forrás: GDELT`,'');
+  L.push('NAPONKÉNT (balról jobbra az időszeletek, 00:00-tól)','');
+  D.grid.forEach((row,r)=>{const d=D.days[r],cells=row.filter(c=>c.state!=='future');if(!cells.length)return;const str=cells.map(c=>SYM[lv(c)]).join('');
+    L.push(`${String(r+1).padStart(3,' ')}. ${d.toLocaleDateString('hu-HU',{month:'2-digit',day:'2-digit'})}  ${str.replace(new RegExp(`(.{${Math.max(1,Math.round(24/S.res))}})`,'g'),'$1 ').trim()}`);});
+  L.push('','FONALCSOPORTOKBAN (egymás után, ahogy szövöd)','');
+  const P=picksOf();let i=0,k=0;while(i<P.length){let j=i;while(j<P.length&&lv(P[j])===lv(P[i]))j++;const cnt=(j-i)*S.th;k++;
+    const t=P[i].t;L.push(`${String(k).padStart(4,' ')}. ${SYM[lv(P[i])]} ${LNAME[lv(P[i])].padEnd(8,' ')} × ${String(cnt).padStart(3,' ')} fonal   (${t.toLocaleDateString('hu-HU',{month:'2-digit',day:'2-digit'})} ${t.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}-tól)`);i=j;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([L.join('\n')],{type:'text/plain;charset=utf-8'}));a.download=`holes-szovesi-lista-${selLabel().replace(/[^a-z0-9áéíóöőúüű]+/gi,'-')}-${new Date().toISOString().slice(0,10)}.txt`;document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);};
+$('#chart').onclick=()=>{if(!D||!D.grid.length)return;const C=16,L=96,T=64,B=40,rows=D.grid.length,cols=D.cols,H=T+rows*C+B;const unit0=unitTxt(S.res),sub=`1 sor = 1 nap · 1 cella = ${unit0} · sötét = volt hír, üres = csend · ${D.days[0].toLocaleDateString('hu-HU')} – ${D.days[rows-1].toLocaleDateString('hu-HU')}`;const W=Math.max(L+cols*C+24,L+sub.length*7+24);
   const k=document.createElement('canvas');k.width=W*2;k.height=H*2;const x=k.getContext('2d');x.scale(2,2);x.fillStyle='#fff';x.fillRect(0,0,W,H);
   x.fillStyle='#111';x.font='600 13px ui-monospace,Menlo,monospace';x.fillText(`holes are never simply absences · ${selLabel()}`,L,24);
   x.font='11px ui-monospace,Menlo,monospace';x.fillStyle='#555';x.fillText(sub,L,42);
   x.textAlign='center';for(let c=0;c<cols;c++){const hr=c*S.res*15/60;if(Number.isInteger(hr)&&hr%(S.res>=4?3:1)===0)x.fillText(String(hr).padStart(2,'0'),L+c*C+C/2,T-8);}
   D.grid.forEach((row,r)=>{x.textAlign='right';x.fillStyle='#555';const d=D.days[r];x.fillText(`${r+1}. ${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`,L-8,T+r*C+C-4);
-    row.forEach((cel,c)=>{if(cel.state==='hit'){x.fillStyle='#111';x.fillRect(L+c*C,T+r*C,C,C);}});});
+    row.forEach((cel,c)=>{const lv_=lv(cel);if(lv_>0){x.fillStyle=TONED[lv_];x.fillRect(L+c*C,T+r*C,C,C);if(lv_===1){x.fillStyle='#888';for(let q=2;q<C;q+=4)x.fillRect(L+c*C+q,T+r*C+q,1.5,1.5);}}});});
   for(let c=0;c<=cols;c++){x.strokeStyle=c%(S.res>=4?6:4)===0?'#666':'#ccc';x.lineWidth=c%(S.res>=4?6:4)===0?1:.5;x.beginPath();x.moveTo(L+c*C,T);x.lineTo(L+c*C,T+rows*C);x.stroke();}
   for(let r=0;r<=rows;r++){x.strokeStyle=r%7===0?'#666':'#ccc';x.lineWidth=r%7===0?1:.5;x.beginPath();x.moveTo(L,T+r*C);x.lineTo(L+cols*C,T+r*C);x.stroke();}
   D.grid.forEach((row,r)=>row.forEach((cel,c)=>{if(cel.state==='future'){x.fillStyle='#fff';x.fillRect(L+c*C+1,T+r*C+1,C+1,C-1);}}));
   k.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`holes-mintarajz-${selLabel().replace(/[^a-z0-9áéíóöőúüű]+/gi,'-')}-${new Date().toISOString().slice(0,10)}.png`;document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);},'image/png');};
-$('#bmp').onclick=()=>{if(!D||!D.grid.length)return;const TH=S.th,M=[];D.grid.forEach((row,r)=>{for(let i=0;i<TH;i++){const y=r*TH+i,o=new Uint8Array(D.cols*TH);for(let c=0;c<D.cols;c++)for(let j=0;j<TH;j++){const x=c*TH+j;o[x]=threadUp(row[c].state,y,x);}M.push(o);}});
+$('#bmp').onclick=()=>{if(!D||!D.grid.length)return;const TH=S.th,M=[];D.grid.forEach((row,r)=>{for(let i=0;i<TH;i++){const y=r*TH+i,o=new Uint8Array(D.cols*TH);for(let c=0;c<D.cols;c++)for(let j=0;j<TH;j++){const x=c*TH+j;o[x]=threadUp(lv(row[c]),y,x);}M.push(o);}});
   const h=M.length,w=M[0].length,rb=Math.ceil(Math.ceil(w/8)/4)*4,size=62+rb*h,buf=new ArrayBuffer(size),v=new DataView(buf);
   v.setUint8(0,0x42);v.setUint8(1,0x4D);v.setUint32(2,size,true);v.setUint32(10,62,true);v.setUint32(14,40,true);v.setInt32(18,w,true);v.setInt32(22,h,true);
   v.setUint16(26,1,true);v.setUint16(28,1,true);v.setUint32(34,rb*h,true);v.setInt32(38,2835,true);v.setInt32(42,2835,true);v.setUint32(46,2,true);v.setUint32(50,2,true);
