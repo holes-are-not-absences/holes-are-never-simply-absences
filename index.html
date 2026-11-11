@@ -77,7 +77,7 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 
   <div class="box">
     <div class="bar">
-      <div class="row" style="gap:12px"><div class="seg" id="layout"><button data-v="one" class="on">egy téma</button><button data-v="spec">spektrogram</button><button data-v="ca">sejtautomata</button></div><div class="seg" id="view"><button data-v="cloth" class="on">szövet</button><button data-v="data">adat</button></div></div>
+      <div class="row" style="gap:12px"><div class="seg" id="layout"><button data-v="one" class="on">rács</button><button data-v="ca">cseppek</button></div><div class="seg" id="view"><button data-v="cloth" class="on">szövet</button><button data-v="data">adat</button></div></div>
       <span class="meta" id="meta"></span>
     </div>
     <div class="cwrap" id="cwrap"><canvas id="cv"></canvas></div>
@@ -96,13 +96,11 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
         <div class="hint" id="modeHint"></div>
       </div>
       <div class="sec" id="caBox">
-        <div class="lbl">sejtautomata: szabály</div>
-        <div class="seg" id="caRule"><button data-v="18">18</button><button data-v="30">30</button><button data-v="54">54</button><button data-v="90">90</button><button data-v="110">110</button><button data-v="150">150</button></div>
-        <div class="hint">Minden cella a fölötte lévő három cellából születik a szabály szerint. A kiválasztott téma hírei minden órában „bekapcsolnak” cellákat, ezeket a szabály viszi tovább.</div>
+        <div class="lbl">cseppek: a minta szabálya</div>
+        <div class="seg" id="caRule"><button data-v="90">90</button><button data-v="18">18</button><button data-v="150">150</button><button data-v="30">30</button></div>
+        <div class="hint">Alapból csend van. Ahová egy hír esik, ott egy kis minta nyílik ki, majd elhalványul és eltűnik. Minél több cikk szólt róla, annál nagyobb és hosszabb életű a minta (1 cikk: 3 óra, minden duplázás +3 óra, legfeljebb egy nap). A nagyon gyakori kulcsszavak mintái összeérnek és kitöltik a szövetet, a ritkábbak különálló cseppek maradnak. A szám a minta formáját adja: 90 csipkés háromszög, 18 ritkás, 150 sűrű, 30 szabálytalan.</div>
         <div class="lbl" style="margin-top:10px">szélesség (cella)</div>
         <div class="rng"><input type="range" id="caW" min="16" max="120" value="48"><output id="caWV">48</output></div>
-        <div class="lbl">kezdősor</div>
-        <div class="seg" id="caSeed"><button data-v="empty">üres</button><button data-v="title">a cím binárisan</button></div><div class="hint">Üres kezdősornál minden forma egy hírből indul. A címmel induló sor a szabály saját mintáját is mutatja.</div>
       </div>
       <div class="sec">
         <div class="lbl" id="resLbl">egy cella ideje (egy sor mindig egy nap)</div>
@@ -139,10 +137,11 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 const $=s=>document.querySelector(s);
 const SLOTS=96;
 let RAW=null,CATS=[],D=null,G=null,lastLoad=null;
-let S={caRule:90,caW:48,caSeed:'empty',layout:'one',levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'hand',res:4,th:1,den:3,px:6,wid:12,q:''};
+let S={caRule:90,caW:48,layout:'one',levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'hand',res:4,th:1,den:3,px:6,wid:12,q:''};
 const MODES={stripe:{res:4,th:1,den:3,px:6},hand:{res:4,th:1,den:3,px:10},jacq:{res:1,th:10,den:12,px:2}};
 const unitTxt=r=>({1:'15 perc',2:'30 perc',4:'1 óra',8:'2 óra',16:'4 óra'})[r]||'';
 try{Object.assign(S,JSON.parse(localStorage.getItem('holes-gdelt')||'{}'));}catch(e){}
+if(!['one','ca'].includes(S.layout))S.layout='one';
 if(S.mode==='stripe'||!['hand','jacq'].includes(S.mode)){S.mode='hand';Object.assign(S,{res:4,th:1,den:3,px:10});}S.levels=1;S.loud=4;S.women=false;
 const save=()=>{try{localStorage.setItem('holes-gdelt',JSON.stringify(S));}catch(e){}};
 
@@ -172,8 +171,7 @@ function colOf(){return (S.women?'n|':'')+S.sel;}
 function selLabel(){const w=S.women?' (nőket említő cikkek)':'';if(S.sel==='_osszes')return'minden téma együtt'+w;if(S.sel.startsWith('tema:'))return'téma: '+S.sel.slice(5)+w;return S.sel+w;}
 
 function build(){
-  if(S.layout==='spec')return buildSpec();
-  if(S.layout==='ca')return buildCA();
+    if(S.layout==='ca')return buildCA();
   const col=colOf(),map=new Map(RAW.rows.map(r=>[r.slot,r]));
   if(!RAW.rows.length)return{days:[],grid:[],cols:0};
   const last=slotDate(RAW.rows[RAW.rows.length-1].slot);
@@ -197,18 +195,17 @@ function buildCA(){
   const last=slotDate(RAW.rows[RAW.rows.length-1].slot);let first=slotDate(RAW.rows[0].slot);const minStart=new Date(last.getTime()-S.span*864e5);if(first<minStart)first=minStart;
   const d0=new Date(first.getFullYear(),first.getMonth(),first.getDate()),pre=S.women?'n|':'',N=S.caW,rule=S.caRule,kws=selKws();
   const pos=kws.map((k,i)=>Math.floor((i+0.5)*N/Math.max(1,kws.length)));
-  let row=new Uint8Array(N);
-  if(S.caSeed==='title'){const b=[];for(const x of new TextEncoder().encode('holes are never simply absences'))for(let i=7;i>=0;i--)b.push((x>>i)&1);for(let i=0;i<N;i++)row[i]=b[i%b.length];}
-  const grid=[],days=[];let firstRow=true;
-  for(let t=d0.getTime();t<=last.getTime();t+=S.res*9e5){
-    let nx=new Uint8Array(N);
-    if(firstRow)nx=row.slice();else for(let c=0;c<N;c++){const l=row[(c-1+N)%N],m=row[c],r=row[(c+1)%N];nx[c]=(rule>>((l<<2)|(m<<1)|r))&1;}
-    const inj=new Array(N).fill(null),T=new Date(t);let tot=0;
-    kws.forEach((k,i)=>{let h=0;for(let q=0;q<S.res;q++){const tt=t+q*9e5;if(tt>last.getTime())continue;const r=map.get(new Date(tt).toISOString().replace(/[-:T]/g,'').slice(0,14));if(!r||r.total===''||r[pre+k]===undefined||r[pre+k]==='')continue;h+=+r[pre+k];if(i===0)tot+=+r.total;}
-      if(h>0){const w=h>=4?3:h>=2?2:1;for(let d=0;d<w;d++){const c=(pos[i]+d)%N;nx[c]^=1;inj[c]=(inj[c]?inj[c]+', ':'')+k+` (${h})`;}}});
-    grid.push(Array.from(nx,(v,c)=>({state:v?'hit':'quiet',L:inj[c]&&v?3:(v?2:0),t:T,h:0,total:tot,kw:inj[c],ca:true})));
-    days.push(T);row=nx;firstRow=false;}
-  return{days,grid,cols:N,spec:true,ca:true};
+  const times=[];for(let t=d0.getTime();t<=last.getTime();t+=S.res*9e5)times.push(t);
+  const R=times.length,L=Array.from({length:R},()=>new Uint8Array(N)),src=Array.from({length:R},()=>new Array(N).fill(null)),tot=new Array(R).fill(0);
+  // hírek összegyűjtése
+  const ev=[];times.forEach((t,r)=>kws.forEach((k,i)=>{let h=0;for(let q=0;q<S.res;q++){const tt=t+q*9e5;if(tt>last.getTime())continue;const row=map.get(new Date(tt).toISOString().replace(/[-:T]/g,'').slice(0,14));if(!row||row.total===''||row[pre+k]===undefined||row[pre+k]==='')continue;h+=+row[pre+k];if(i===0)tot[r]+=+row.total;}
+    if(h>0)ev.push({r,c:pos[i],h,k});}));
+  // minden hír egy saját kis sejtautomatát indít: élettartam 3 óra 1 cikknél, minden duplázással +3 óra, legfeljebb 24 óra
+  ev.forEach(e=>{const life=Math.max(1,Math.round(Math.min(24,3*(1+Math.log2(e.h)))*4/S.res));let row=new Uint8Array(N);row[e.c]=1;
+    for(let a=0;a<life&&e.r+a<R;a++){if(a>0){const nx=new Uint8Array(N);for(let c=0;c<N;c++){const l=row[(c-1+N)%N],m=row[c],rr=row[(c+1)%N];nx[c]=(rule>>((l<<2)|(m<<1)|rr))&1;}row=nx;}
+      const fade=a>=life*2/3?1:2;for(let c=0;c<N;c++)if(row[c]){const y=e.r+a;if(a===0){L[y][c]=3;src[y][c]=(src[y][c]?src[y][c]+', ':'')+`${e.k} (${e.h})`;}else if(L[y][c]<fade)L[y][c]=fade;}}});
+  const grid=times.map((t,r)=>Array.from(L[r],(v,c)=>({state:v?'hit':'quiet',L:v,t:new Date(t),h:0,total:tot[r],kw:src[r][c],ca:true})));
+  return{days:times.map(t=>new Date(t)),grid,cols:N,spec:true,ca:true};
 }
 function buildSpec(){
   const map=new Map(RAW.rows.map(r=>[r.slot,r]));if(!RAW.rows.length)return{days:[],grid:[],cols:0,spec:true};
@@ -307,16 +304,16 @@ function common(){
     $('#meta').textContent=`${rows} nap · 1 időszelet (${unit}) = ${TH} vetülékfonal · sötét = volt hír, világos = csend`;
     $('#size').innerHTML=`<span>vetülékfonal (sor)</span><span>${n.toLocaleString('hu-HU')}</span><span>láncfonal (kb.)</span><span>${ends}</span><span>szélesség</span><span>${S.wid} cm</span><span>hosszúság (kb.)</span><span>${(n/S.den).toFixed(0)} cm</span>`;}
   else{
-  $('#meta').textContent=D.ca?`sejtautomata · ${S.caRule}-es szabály · ${D.cols} cella széles · 1 sor = ${unit} · ${selLabel()}`:D.spec?`spektrogram · 1 oszlop = 1 kulcsszó (${D.info.filter(i=>!i.gap).length}) · 1 sor = ${unit} · ${TH}×${TH} fonal`:`${rows} nap · 1 sor = 1 nap · 1 cella = ${unit} = ${TH}×${TH} fonal`;
+  $('#meta').textContent=D.ca?`cseppek · ${D.cols} cella széles · 1 sor = ${unit} · ${selLabel()}`:D.spec?`spektrogram · 1 oszlop = 1 kulcsszó (${D.info.filter(i=>!i.gap).length}) · 1 sor = ${unit} · ${TH}×${TH} fonal`:`${rows} nap · 1 sor = 1 nap · 1 cella = ${unit} = ${TH}×${TH} fonal`;
   const ends=cols*TH,picks=rows*TH;
   $('#size').innerHTML=`<span>láncfonal</span><span>${ends}</span><span>vetülékfonal</span><span>${picks}</span><span>szélesség</span><span>${(ends/S.den).toFixed(1).replace('.',',')} cm</span><span>hosszúság</span><span>${(picks/S.den).toFixed(1).replace('.',',')} cm</span>`;}
   const lastSlot=slotDate(RAW.rows[RAW.rows.length-1].slot);
   $('#upd').innerHTML=`<span>legutolsó adat</span><span>${fmtT(lastSlot)}</span><span>oldal betöltve</span><span>${lastLoad.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span><span>következő újratöltés</span><span>${new Date(lastLoad.getTime()+9e5).toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span>`;
   // vezérlők állapota
   [['#span','span'],['#view','view'],['#res','res']].forEach(([id,k])=>[...$(id).children].forEach(b=>b.classList.toggle('on',String(S[k])===b.dataset.v)));
-  const lg=S.layout==='ca'?[[3,'hír: itt jelent meg'],[2,'továbbterjedés: a szabály vitte tovább'],[0,'csend, kioltás (lyuk)']]:S.layout==='spec'?[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: a kulcsszó saját alsó harmada'],[2,'közepes: saját középső harmada'],[3,'hangos: saját felső harmada']]:[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,'közepes: 2–3 cikk'],[3,'hangos: 4 vagy több cikk']];
+  const lg=S.layout==='ca'?[[3,'hír: itt esett le'],[2,'a hír mintája'],[1,'elhalványulás'],[0,'csend (lyuk)']]:S.layout==='spec'?[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: a kulcsszó saját alsó harmada'],[2,'közepes: saját középső harmada'],[3,'hangos: saját felső harmada']]:[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,'közepes: 2–3 cikk'],[3,'hangos: 4 vagy több cikk']];
   [...$('#layout').children].forEach(b=>b.classList.toggle('on',S.layout===b.dataset.v));
-  $('#caBox').style.display=S.layout==='ca'?'':'none';[...$('#caRule').children].forEach(b=>b.classList.toggle('on',String(S.caRule)===b.dataset.v));[...$('#caSeed').children].forEach(b=>b.classList.toggle('on',S.caSeed===b.dataset.v));$('#caW').value=S.caW;$('#caWV').textContent=S.caW;
+  $('#caBox').style.display=S.layout==='ca'?'':'none';[...$('#caRule').children].forEach(b=>b.classList.toggle('on',String(S.caRule)===b.dataset.v));$('#caW').value=S.caW;$('#caWV').textContent=S.caW;
   $('#legend').innerHTML=lg.map(([L,t])=>`<div class="sw" style="background:${TONED[L]}"></div><div>${t}${S.mode==='jacq'?' · '+['vetülékes atlasz','2/2 sávoly','3/1 sávoly','láncos atlasz'][L]:''}</div>`).join('');
   
   [...$('#mode').children].forEach(b=>b.classList.toggle('on',S.mode===b.dataset.v));
@@ -335,13 +332,13 @@ cv.addEventListener('mousemove',e=>{if(!G)return;const r=cv.getBoundingClientRec
   if(G.stripe){const i=Math.floor(y/G.ph);if(i<0||i>=G.n||x<0||x>G.BW){tip.style.display='none';return;}c=G.P[i];}
   else{const row=Math.floor(y/G.cell),col=Math.floor(x/G.cell);if(row<0||row>=G.rows||col<0||col>=G.cols){tip.style.display='none';return;}c=D.grid[row][col];}
   const t=c.t.toLocaleString('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const txt=c.ca?(c.kw?`hír: ${c.kw}`:c.state==='hit'?'továbbterjedés':'csend'):c.state==='future'?'még nem gyűlt össze':c.state==='hit'?`${c.h} cikk a témáról / ${c.total.toLocaleString('hu-HU')} összes`:`csend · ${c.total.toLocaleString('hu-HU')} cikk, egy sem a témáról`;
+  const txt=c.ca?(c.kw?`hír: ${c.kw}`:c.L===2?'egy korábbi hír mintája':c.L===1?'elhalványuló minta':'csend'):c.state==='future'?'még nem gyűlt össze':c.state==='hit'?`${c.h} cikk a témáról / ${c.total.toLocaleString('hu-HU')} összes`:`csend · ${c.total.toLocaleString('hu-HU')} cikk, egy sem a témáról`;
   if(c.state==='gap'){tip.style.display='none';return;}
   tip.innerHTML=`${c.kw&&!c.ca?`<b>${c.kw}</b><br>`:''}${t}<br>${txt}`;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';});
 cv.addEventListener('mouseleave',()=>tip.style.display='none');
 
 function seg(id,key,num){$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;save();draw();};}
-seg('#span','span',true);seg('#layout','layout');seg('#caRule','caRule',true);seg('#caSeed','caSeed');
+seg('#span','span',true);seg('#layout','layout');seg('#caRule','caRule',true);
 $('#caW').addEventListener('input',e=>{S.caW=+e.target.value;save();draw();});
 $('#spanN').addEventListener('change',e=>{const v=Math.round(+e.target.value);if(v>0){S.span=v;save();draw();}});
 $('#mode').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.mode=b.dataset.v;Object.assign(S,MODES[S.mode]);save();draw();};seg('#view','view');seg('#res','res',true);
