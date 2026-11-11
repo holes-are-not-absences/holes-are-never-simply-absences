@@ -77,7 +77,7 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 
   <div class="box">
     <div class="bar">
-      <div class="seg" id="view"><button data-v="cloth" class="on">szövet</button><button data-v="data">adat</button></div>
+      <div class="row" style="gap:12px"><div class="seg" id="layout"><button data-v="one" class="on">egy téma</button><button data-v="spec">spektrogram</button></div><div class="seg" id="view"><button data-v="cloth" class="on">szövet</button><button data-v="data">adat</button></div></div>
       <span class="meta" id="meta"></span>
     </div>
     <div class="cwrap" id="cwrap"><canvas id="cv"></canvas></div>
@@ -130,7 +130,7 @@ canvas{display:block;margin:0 auto;cursor:crosshair}
 const $=s=>document.querySelector(s);
 const SLOTS=96;
 let RAW=null,CATS=[],D=null,G=null,lastLoad=null;
-let S={levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'hand',res:4,th:1,den:3,px:6,wid:12,q:''};
+let S={layout:'one',levels:1,loud:4,women:false,sel:'_osszes',span:28,view:'cloth',mode:'hand',res:4,th:1,den:3,px:6,wid:12,q:''};
 const MODES={stripe:{res:4,th:1,den:3,px:6},hand:{res:4,th:1,den:3,px:10},jacq:{res:1,th:10,den:12,px:2}};
 const unitTxt=r=>({1:'15 perc',2:'30 perc',4:'1 óra',8:'2 óra',16:'4 óra'})[r]||'';
 try{Object.assign(S,JSON.parse(localStorage.getItem('holes-gdelt')||'{}'));}catch(e){}
@@ -163,6 +163,7 @@ function colOf(){return (S.women?'n|':'')+S.sel;}
 function selLabel(){const w=S.women?' (nőket említő cikkek)':'';if(S.sel==='_osszes')return'minden téma együtt'+w;if(S.sel.startsWith('tema:'))return'téma: '+S.sel.slice(5)+w;return S.sel+w;}
 
 function build(){
+  if(S.layout==='spec')return buildSpec();
   const col=colOf(),map=new Map(RAW.rows.map(r=>[r.slot,r]));
   if(!RAW.rows.length)return{days:[],grid:[],cols:0};
   const last=slotDate(RAW.rows[RAW.rows.length-1].slot);
@@ -180,8 +181,25 @@ function build(){
   }
   return{days,grid,cols};
 }
+function buildSpec(){
+  const map=new Map(RAW.rows.map(r=>[r.slot,r]));if(!RAW.rows.length)return{days:[],grid:[],cols:0,spec:true};
+  const last=slotDate(RAW.rows[RAW.rows.length-1].slot);let first=slotDate(RAW.rows[0].slot);const minStart=new Date(last.getTime()-S.span*864e5);if(first<minStart)first=minStart;
+  const d0=new Date(first.getFullYear(),first.getMonth(),first.getDate()),pre=S.women?'n|':'',info=[];
+  CATS.forEach((cat,ci)=>{if(ci>0)info.push({gap:true});cat.kws.forEach(k=>info.push({kw:k,cat:cat.name}));});
+  const grid=[],days=[];
+  for(let t=d0.getTime();t<=last.getTime();t+=S.res*9e5){
+    grid.push(info.map(ci=>{const T=new Date(t);if(ci.gap)return{state:'gap',t:T};let h=0,tot=0;
+      for(let k=0;k<S.res;k++){const tt=t+k*9e5;if(tt>last.getTime())continue;const r=map.get(new Date(tt).toISOString().replace(/[-:T]/g,'').slice(0,14));
+        if(!r||r.total===''||r[pre+ci.kw]===undefined||r[pre+ci.kw]==='')continue;h+=+r[pre+ci.kw];tot+=+r.total;}
+      return{state:h>0?'hit':'quiet',t:T,h,total:tot,kw:ci.kw,cat:ci.cat};}));
+    days.push(new Date(t));}
+  // minden oszlop a saját skáláján: a nem nulla órák alsó, középső, felső harmada
+  info.forEach((ci,c)=>{if(ci.gap)return;const v=grid.map(r=>r[c].h).filter(x=>x>0).sort((a,b)=>a-b);const q1=v[Math.floor(v.length/3)]||1,q2=v[Math.floor(2*v.length/3)]||1;
+    grid.forEach(r=>{const e=r[c];e.L=e.h===0?0:(v.length<3?3:e.h<q1?1:e.h<q2?2:3);});});
+  return{days,grid,cols:info.length,spec:true,info};
+}
 function satin(y,x,warp){const on=((x*2+y)%5)===0;return warp?(on?0:1):(on?1:0);}
-function lv(c){if(!c||c.state==='future')return -1;if(c.state!=='hit')return 0;if(!S.levels)return 3;return c.h>=S.loud?3:c.h>=2?2:1;}
+function lv(c){if(!c||c.state==='future')return -1;if(c.state==='gap')return 0;if(c.L!==undefined)return c.L;if(c.state!=='hit')return 0;if(!S.levels)return 3;return c.h>=S.loud?3:c.h>=2?2:1;}
 // 0 csend: vetülékes atlasz (világos) · 1 halk: 2/2 sávoly · 2 közepes: 3/1 sávoly · 3 hangos: láncos atlasz (sötét)
 function threadUp(L,y,x){return L===3?satin(y,x,true):L===2?((x+y)%4<3?1:0):L===1?((x+y)%4<2?1:0):satin(y,x,false);}
 const TONE=['#ffffff','#c8c8c8','#6f6f6f','#111111'],TONED=['#ffffff','#c8c8c8','#6f6f6f','#111111'],SYM=['□','░','▒','■'],LNAME=['csend','halk','közepes','hangos'];
@@ -239,14 +257,16 @@ function drawGrid(){
   const TH=S.th,PX=S.px,LW=72,TOP=18,cell=TH*PX,W=LW+cols*cell+1,H=TOP+rows*cell+1,dpr=devicePixelRatio||1;
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#fff';g.fillRect(0,0,W,H);G={LW,TOP,cell,rows,cols,W};
   g.font='10px ui-monospace,Menlo,monospace';g.textBaseline='top';g.fillStyle='#8a8a8a';
-  for(let hr=0;hr<24;hr+=6)g.fillText(String(hr).padStart(2,'0')+':00',LW+hr*4/S.res*cell,3);
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const st=D.grid[r][c].state;if(st==='future')continue;
+  if(D.spec){let c0=0;D.info.forEach((ci,c)=>{if(ci.gap||c===0){const start=ci.gap?c+1:0;if(start<D.info.length){let end=start;while(end<D.info.length&&!D.info[end].gap)end++;let t=D.info[start].cat;const mw=(end-start)*cell-2;while(g.measureText(t).width>mw&&t.length>2)t=t.slice(0,-1);if(t!==D.info[start].cat&&t.length>2)t=t.slice(0,-1)+'…';g.fillText(t,LW+start*cell,3);}}});}
+  else for(let hr=0;hr<24;hr+=6)g.fillText(String(hr).padStart(2,'0')+':00',LW+hr*4/S.res*cell,3);
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const st=D.grid[r][c].state;if(st==='future'||st==='gap')continue;
     if(S.view==='cloth'&&S.mode==='hand'){const X=LW+c*cell,Y=TOP+r*cell,L=lv(D.grid[r][c]),dark=L>=2,rib=Math.max(3,Math.round(PX*0.6));
       g.fillStyle=TONE[L];g.fillRect(X,Y,cell,cell);if(cell>=6){g.strokeStyle='#e4e4e4';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}
       continue;}
     if(S.view==='cloth'){for(let i=0;i<TH;i++)for(let j=0;j<TH;j++){const y=r*TH+i,x=c*TH+j;g.fillStyle=threadUp(lv(D.grid[r][c]),y,x)?'#262626':'#ececec';g.fillRect(LW+x*PX,TOP+y*PX,PX,PX);}}
     else{const X=LW+c*cell,Y=TOP+r*cell,L=lv(D.grid[r][c]);if(L>0){g.fillStyle=TONED[L];g.fillRect(X,Y,cell,cell);}else if(cell>=4){g.strokeStyle='#e2e2e2';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}}}
   g.fillStyle='#8a8a8a';const step=cell>=11?1:Math.ceil(11/cell);
+  if(D.spec){let k=0;D.days.forEach((d,r)=>{if(d.getHours()===0&&d.getMinutes()===0){if(k%Math.max(1,Math.ceil(11/(cell*96/S.res)))===0)g.fillText(`${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}${d.getDay()===1?' H':''}`,0,TOP+r*cell);k++;g.fillStyle='#e0e0e0';g.fillRect(LW-6,TOP+r*cell,4,1);g.fillStyle='#8a8a8a';}});return;}
   D.days.forEach((d,r)=>{if(r%step===0||r===rows-1)g.fillText(`${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}${d.getDay()===1?' H':''}`,0,TOP+r*cell+Math.max(0,(cell-10)/2));});
 }
 function common(){
@@ -258,14 +278,15 @@ function common(){
     $('#meta').textContent=`${rows} nap · 1 időszelet (${unit}) = ${TH} vetülékfonal · sötét = volt hír, világos = csend`;
     $('#size').innerHTML=`<span>vetülékfonal (sor)</span><span>${n.toLocaleString('hu-HU')}</span><span>láncfonal (kb.)</span><span>${ends}</span><span>szélesség</span><span>${S.wid} cm</span><span>hosszúság (kb.)</span><span>${(n/S.den).toFixed(0)} cm</span>`;}
   else{
-  $('#meta').textContent=`${rows} nap · 1 sor = 1 nap · 1 cella = ${unit} = ${TH}×${TH} fonal`;
+  $('#meta').textContent=D.spec?`spektrogram · 1 oszlop = 1 kulcsszó (${D.info.filter(i=>!i.gap).length}) · 1 sor = ${unit} · ${TH}×${TH} fonal`:`${rows} nap · 1 sor = 1 nap · 1 cella = ${unit} = ${TH}×${TH} fonal`;
   const ends=cols*TH,picks=rows*TH;
   $('#size').innerHTML=`<span>láncfonal</span><span>${ends}</span><span>vetülékfonal</span><span>${picks}</span><span>szélesség</span><span>${(ends/S.den).toFixed(1).replace('.',',')} cm</span><span>hosszúság</span><span>${(picks/S.den).toFixed(1).replace('.',',')} cm</span>`;}
   const lastSlot=slotDate(RAW.rows[RAW.rows.length-1].slot);
   $('#upd').innerHTML=`<span>legutolsó adat</span><span>${fmtT(lastSlot)}</span><span>oldal betöltve</span><span>${lastLoad.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span><span>következő újratöltés</span><span>${new Date(lastLoad.getTime()+9e5).toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</span>`;
   // vezérlők állapota
   [['#span','span'],['#view','view'],['#res','res']].forEach(([id,k])=>[...$(id).children].forEach(b=>b.classList.toggle('on',String(S[k])===b.dataset.v)));
-  const lg=[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,'közepes: 2–3 cikk'],[3,'hangos: 4 vagy több cikk']];
+  const lg=S.layout==='spec'?[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: a kulcsszó saját alsó harmada'],[2,'közepes: saját középső harmada'],[3,'hangos: saját felső harmada']]:[[0,'csend: egy cikk sem (lyuk)'],[1,'halk: 1 cikk'],[2,'közepes: 2–3 cikk'],[3,'hangos: 4 vagy több cikk']];
+  [...$('#layout').children].forEach(b=>b.classList.toggle('on',S.layout===b.dataset.v));
   $('#legend').innerHTML=lg.map(([L,t])=>`<div class="sw" style="background:${TONED[L]}"></div><div>${t}${S.mode==='jacq'?' · '+['vetülékes atlasz','2/2 sávoly','3/1 sávoly','láncos atlasz'][L]:''}</div>`).join('');
   
   [...$('#mode').children].forEach(b=>b.classList.toggle('on',S.mode===b.dataset.v));
@@ -285,11 +306,12 @@ cv.addEventListener('mousemove',e=>{if(!G)return;const r=cv.getBoundingClientRec
   else{const row=Math.floor(y/G.cell),col=Math.floor(x/G.cell);if(row<0||row>=G.rows||col<0||col>=G.cols){tip.style.display='none';return;}c=D.grid[row][col];}
   const t=c.t.toLocaleString('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   const txt=c.state==='future'?'még nem gyűlt össze':c.state==='hit'?`${c.h} cikk a témáról / ${c.total.toLocaleString('hu-HU')} összes`:`csend · ${c.total.toLocaleString('hu-HU')} cikk, egy sem a témáról`;
-  tip.innerHTML=`${t}<br>${txt}`;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';});
+  if(c.state==='gap'){tip.style.display='none';return;}
+  tip.innerHTML=`${c.kw?`<b>${c.kw}</b><br>`:''}${t}<br>${txt}`;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';});
 cv.addEventListener('mouseleave',()=>tip.style.display='none');
 
 function seg(id,key,num){$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;save();draw();};}
-seg('#span','span',true);
+seg('#span','span',true);seg('#layout','layout');
 $('#spanN').addEventListener('change',e=>{const v=Math.round(+e.target.value);if(v>0){S.span=v;save();draw();}});
 $('#mode').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.mode=b.dataset.v;Object.assign(S,MODES[S.mode]);save();draw();};seg('#view','view');seg('#res','res',true);
 [['#th','th'],['#den','den'],['#px','px'],['#wid','wid']].forEach(([id,k])=>$(id).addEventListener('input',e=>{S[k]=+e.target.value;save();draw();}));
@@ -309,8 +331,8 @@ $('#chart').onclick=()=>{if(!D||!D.grid.length)return;const C=16,L=96,T=64,B=40,
   const k=document.createElement('canvas');k.width=W*2;k.height=H*2;const x=k.getContext('2d');x.scale(2,2);x.fillStyle='#fff';x.fillRect(0,0,W,H);
   x.fillStyle='#111';x.font='600 13px ui-monospace,Menlo,monospace';x.fillText(`holes are never simply absences · ${selLabel()}`,L,24);
   x.font='11px ui-monospace,Menlo,monospace';x.fillStyle='#555';x.fillText(sub,L,42);
-  x.textAlign='center';for(let c=0;c<cols;c++){const hr=c*S.res*15/60;if(Number.isInteger(hr)&&hr%(S.res>=4?3:1)===0)x.fillText(String(hr).padStart(2,'0'),L+c*C+C/2,T-8);}
-  D.grid.forEach((row,r)=>{x.textAlign='right';x.fillStyle='#555';const d=D.days[r];x.fillText(`${r+1}. ${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`,L-8,T+r*C+C-4);
+  x.textAlign='center';if(!D.spec)for(let c=0;c<cols;c++){const hr=c*S.res*15/60;if(Number.isInteger(hr)&&hr%(S.res>=4?3:1)===0)x.fillText(String(hr).padStart(2,'0'),L+c*C+C/2,T-8);}
+  D.grid.forEach((row,r)=>{x.textAlign='right';x.fillStyle='#555';const d=D.days[r];x.fillText(`${r+1}. ${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}${D.spec?' '+String(d.getHours()).padStart(2,'0')+'h':''}`,L-8,T+r*C+C-4);
     row.forEach((cel,c)=>{const lv_=lv(cel);if(lv_>0){x.fillStyle=TONED[lv_];x.fillRect(L+c*C,T+r*C,C,C);if(lv_===1){x.fillStyle='#888';for(let q=2;q<C;q+=4)x.fillRect(L+c*C+q,T+r*C+q,1.5,1.5);}}});});
   for(let c=0;c<=cols;c++){x.strokeStyle=c%(S.res>=4?6:4)===0?'#666':'#ccc';x.lineWidth=c%(S.res>=4?6:4)===0?1:.5;x.beginPath();x.moveTo(L+c*C,T);x.lineTo(L+c*C,T+rows*C);x.stroke();}
   for(let r=0;r<=rows;r++){x.strokeStyle=r%7===0?'#666':'#ccc';x.lineWidth=r%7===0?1:.5;x.beginPath();x.moveTo(L,T+r*C);x.lineTo(L+cols*C,T+r*C);x.stroke();}
