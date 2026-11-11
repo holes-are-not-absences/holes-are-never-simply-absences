@@ -35,8 +35,28 @@ UA = {"User-Agent": "holes-are-never-simply-absences (MOME student research proj
 
 
 def load_keywords():
+    """[(témakör, kulcsszó), ...] a keywords.txt sorrendjében."""
+    out, cat = [], "egyéb"
     with open(KEYWORDS, encoding="utf-8") as f:
-        return [l.strip().lower() for l in f if l.strip() and not l.strip().startswith("#")]
+        for l in f:
+            l = l.strip()
+            if not l or l.startswith("#"):
+                continue
+            if l.startswith("[") and l.endswith("]"):
+                cat = l[1:-1].strip()
+                continue
+            out.append((cat, normalise(l).strip()))
+    return out
+
+
+def columns(kws):
+    cats = list(dict.fromkeys(c for c, _ in kws))
+    return ["_osszes"] + ["tema:" + c for c in cats] + [k for _, k in kws]
+
+
+def matchers(kws):
+    # szóhatárra illeszt, többes szám (-s, -es) is számít; így pl. a „trolling” nem talál a „patrolling”-ra
+    return [re.compile(r"(?<![a-z0-9])" + re.escape(k) + r"(?:s|es)?(?![a-z0-9])") for _, k in kws]
 
 
 def fetch(url, timeout=120):
@@ -62,7 +82,7 @@ def normalise(s):
     return re.sub(r"[-_/+.%]+", " ", s.lower())
 
 
-def count_slot(t, keywords):
+def count_slot(t, kws, res):
     """Egy 15 perces GKG-fájl feldolgozása. None, ha a fájl nem létezik."""
     url = BASE + slot_name(t) + ".gkg.csv.zip"
     try:
@@ -73,19 +93,26 @@ def count_slot(t, keywords):
         raise
     zf = zipfile.ZipFile(io.BytesIO(raw))
     data = zf.read(zf.namelist()[0]).decode("utf-8", "replace")
+    cols = columns(kws)
+    counts = dict.fromkeys(cols, 0)
     total = 0
-    hits = [0] * len(keywords)
     for line in data.split("\n"):
         f = line.split("\t")
         if len(f) < 27 or f[2] != "1":       # 1 = webes hírforrás
             continue
         total += 1
         m = TITLE_RE.search(f[26])
-        text = normalise(f[4]) + " " + (m.group(1).lower() if m else "")
-        for i, kw in enumerate(keywords):
-            if kw in text:
-                hits[i] += 1
-    return total, hits
+        text = " " + normalise(f[4]) + " " + (normalise(m.group(1)) if m else "") + " "
+        cats = set()
+        for (cat, kw), rx in zip(kws, res):
+            if rx.search(text):
+                counts[kw] += 1
+                cats.add(cat)
+        for c in cats:
+            counts["tema:" + c] += 1
+        if cats:
+            counts["_osszes"] += 1
+    return total, counts
 
 
 def read_existing():
@@ -97,9 +124,9 @@ def read_existing():
     return rows
 
 
-def write_all(rows, keywords):
+def write_all(rows, cols_):
     os.makedirs(os.path.dirname(DATA), exist_ok=True)
-    cols = ["slot", "total"] + keywords
+    cols = ["slot", "total"] + cols_
     with open(DATA, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
@@ -114,7 +141,9 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     a = ap.parse_args()
 
-    keywords = load_keywords()
+    kws = load_keywords()
+    cols = columns(kws)
+    res = matchers(kws)
     rows = read_existing()
     end = latest_slot()
     if a.backfill_days > 0:
@@ -125,40 +154,48 @@ def main():
         start = end - dt.timedelta(hours=6)
     start = start.replace(minute=start.minute - start.minute % 15, second=0, microsecond=0)
 
+    def needs(name):
+        r = rows.get(name)
+        if r is None:
+            return True
+        if r.get("total", "") == "":          # a GDELT-nél hiányzó fájl: nem próbáljuk újra
+            return False
+        return any(r.get(c, "") == "" for c in cols)   # új kulcsszó: újraszámolás
+
     todo = []
     t = start
     while t <= end:
-        if slot_name(t) not in rows:
+        if needs(slot_name(t)):
             todo.append(t)
         t += STEP
     todo = todo[-a.max_slots:]
-    print(f"kulcsszavak: {keywords}")
+    print(f"kulcsszavak: {len(kws)} db, {len(cols) - len(kws) - 1} témakör")
     print(f"feldolgozandó időszeletek: {len(todo)} ({start} – {end} UTC)")
 
     done = missing = failed = 0
     with ThreadPoolExecutor(a.workers) as ex:
-        futs = {ex.submit(count_slot, t, keywords): t for t in todo}
+        futs = {ex.submit(count_slot, t, kws, res): t for t in todo}
         for fu in as_completed(futs):
             t = futs[fu]
             try:
-                res = fu.result()
+                res_ = fu.result()
             except Exception as e:                       # hálózati hiba: következő futáskor újrapróbálja
                 failed += 1
                 print(f"  hiba {slot_name(t)}: {e}", file=sys.stderr)
                 continue
-            if res is None:                              # a GDELT-nél nincs ilyen fájl: adathiány
+            if res_ is None:                              # a GDELT-nél nincs ilyen fájl: adathiány
                 missing += 1
                 rows[slot_name(t)] = {"slot": slot_name(t), "total": ""}
                 continue
-            total, hits = res
+            total, counts = res_
             row = {"slot": slot_name(t), "total": str(total)}
-            row.update({kw: str(h) for kw, h in zip(keywords, hits)})
+            row.update({k: str(v) for k, v in counts.items()})
             rows[slot_name(t)] = row
             done += 1
-            if done % 100 == 0:
+            if done % 100 == 0 or done == len(todo):
                 print(f"  {done}/{len(todo)}")
-                write_all(rows, keywords)
-    write_all(rows, keywords)
+                write_all(rows, cols)
+    write_all(rows, cols)
     print(f"kész: {done} feldolgozva, {missing} hiányzó fájl, {failed} hiba")
 
 

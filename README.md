@@ -5,7 +5,7 @@ Egy sor = egy nap, egy cella = 15 perc. Sötét a cella, ha abban a negyedóráb
 címében vagy webcímében szerepelt a kulcsszó. Ha nem, a cella lyuk.
 
 - `collect.py`: a gyűjtő program. Letölti a GDELT nyers fájljait, és csak számokat ment.
-- `keywords.txt`: a figyelt kulcsszavak, soronként egy.
+- `keywords.txt`: a figyelt kulcsszavak témakörökbe rendezve: `[Témakör]` sor, alatta soronként egy kulcsszó. Új kulcsszó után futtasd a gyűjtőt visszatöltéssel (pl. `28`), és a múltra is kiszámolja.
 - `data/counts.csv`: az összegyűlt adat. Ezt a gyűjtő automatikusan frissíti.
 - `index.html`: a weboldal, ami a szövetet rajzolja.
 - `.github/workflows/collect.yml`: az ütemező, ami óránként lefuttatja a gyűjtőt.
@@ -40,7 +40,7 @@ címében vagy webcímében szerepelt a kulcsszó. Ha nem, a cella lyuk.
 
 - Forrás: GDELT Project, GKG 2.1, 15 perces nyers fájlok (http://data.gdeltproject.org/gdeltv2/).
   A fő GKG-folyam angol nyelvű online híreket tartalmaz.
-- Egy cikk akkor számít, ha a kulcsszó a címében vagy a webcímében szerepel (kis- és nagybetűtől függetlenül).
+- Egy cikk akkor számít, ha a kulcsszó a címében vagy a webcímében szerepel, önálló szóként (többes számmal együtt), kis- és nagybetűtől függetlenül. A témakör-oszlop azokat a cikkeket számolja, amelyekben a témakör legalább egy kulcsszava szerepel.
   A cikk teljes szövegét a GDELT nem adja ki, ezért ez alsó becslés.
 - A „nincs adat” cellák ott vannak, ahol a GDELT-nél hiányzik a 15 perces fájl. Ezek nem csendek,
   hanem adathiányok, és a szöveten másképp jelennek meg.

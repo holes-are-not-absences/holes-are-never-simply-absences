@@ -1,9 +1,70 @@
-# Egy sor = egy kulcsszó. A program a cikk címében és webcímében keres, kis- és nagybetű nem számít.
-# A # kezdetű sorokat figyelmen kívül hagyja. Ha módosítod, az új kulcsszó csak onnantól gyűlik.
+# holes are never simply absences · kulcsszavak
+# [Szögletes zárójelben] a témakör neve, alatta soronként egy kulcsszó.
+# A program a cikkek címében és webcímében keres, kis- és nagybetűtől függetlenül.
+# Az angol nyelvű hírek miatt a kulcsszavak angolul vannak.
+# A # kezdetű sorokat figyelmen kívül hagyja.
+# Új kulcsszó után futtasd a gyűjtőt visszatöltéssel (pl. 28), és a múltra is kiszámolja.
+
+[Képalapú visszaélés]
 deepfake
+deepfake porn
 nudify
+nudification
+undress app
 revenge porn
 intimate image
+image-based abuse
+non-consensual
 sextortion
-cyberstalking
+upskirting
+cyberflashing
+unsolicited nude
+
+[Online zaklatás és követés]
 online harassment
+online abuse
+cyberstalking
+stalkerware
+doxxing
+doxing
+cyberbullying
+trolling
+online violence
+
+[Nőgyűlölet online]
+misogyny
+misogynist
+manosphere
+incel
+andrew tate
+red pill
+gendertrolling
+gamergate
+
+[Test és egészségadat]
+period tracker
+period tracking
+menstrual app
+fertility app
+femtech
+pregnancy data
+abortion data
+body shaming
+beauty filter
+
+[AI és nem]
+ai girlfriend
+ai companion
+gender bias
+sexist ai
+algorithmic bias
+
+[Feminista válaszok]
+cyberfeminism
+cyberfeminist
+technofeminism
+digital feminism
+metoo
+women in tech
+online safety act
+take it down act
