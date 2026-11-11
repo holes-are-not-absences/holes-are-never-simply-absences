@@ -137,7 +137,7 @@ def write_all(rows, cols_):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backfill-days", type=float, default=0)
-    ap.add_argument("--max-slots", type=int, default=4000)
+    ap.add_argument("--max-slots", type=int, default=40000)
     ap.add_argument("--workers", type=int, default=8)
     a = ap.parse_args()
 
