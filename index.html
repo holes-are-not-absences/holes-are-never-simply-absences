@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>holes are never simply absences · GDELT</title>
+<style>
+:root{--ink:#111;--mid:#777;--line:#bdbdbd;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font:14px/1.5 var(--sans)}
+header{border-bottom:1px solid var(--line)}
+header .in{display:flex;justify-content:space-between;align-items:center;height:48px;padding:0 24px;gap:16px}
+.logo{font:12px var(--mono)}
+.status{font:11px var(--mono);color:var(--mid);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block}.dot.on{background:#111}.dot.err{background:#fff;border:1px solid #111}
+main{display:grid;grid-template-columns:240px minmax(0,1fr) 280px;gap:16px;padding:16px 24px 40px;align-items:start}
+.box{border:1px solid var(--line)}
+.head{padding:8px 10px;border-bottom:1px solid var(--line);font:10px var(--mono);color:var(--mid)}
+.sec{padding:12px 10px;border-bottom:1px solid #eee}.sec:last-child{border-bottom:0}
+label{display:block;font:10px var(--mono);color:var(--mid);margin-bottom:6px}
+.hint{font:10px/1.4 var(--mono);color:var(--mid);margin-top:6px}
+.seg,.row{display:flex;gap:4px;flex-wrap:wrap}
+button{font:11px var(--mono);background:#fff;border:1px solid var(--line);padding:5px 9px;cursor:pointer;color:var(--ink)}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.nums{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font:11px var(--mono)}.nums span:nth-child(odd){color:var(--mid)}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap}
+.meta{font:10px var(--mono);color:var(--mid)}
+.cwrap{padding:16px;display:flex;justify-content:center;overflow:auto;max-height:calc(100vh - 150px)}
+canvas{display:block;max-width:100%;height:auto;cursor:crosshair}
+.label{padding:14px;position:sticky;top:16px}
+.lab{font:10px var(--mono);color:var(--mid);margin-bottom:8px}
+.big{font-size:44px;font-weight:600;line-height:1;margin-bottom:8px}
+.desc{font-size:13px;margin-bottom:10px}
+.legend{display:grid;grid-template-columns:14px 1fr;gap:6px 8px;align-items:center;font:10px var(--mono);color:var(--mid);margin-top:12px}
+.sw{width:14px;height:14px;border:1px solid var(--line)}
+.ph{border:1px solid var(--line);color:var(--mid);font:11px var(--mono);display:flex;align-items:center;justify-content:center;padding:12px;min-height:80px;margin-top:12px}
+.msg{font:11px/1.45 var(--mono);background:#f2f2f2;padding:8px;margin-top:8px;display:none}
+.tip{position:fixed;pointer-events:none;background:#111;color:#fff;font:10px/1.35 var(--mono);padding:5px 7px;display:none;z-index:9}
+@media (max-width:1000px){main{grid-template-columns:1fr}.label{position:static}}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div class="logo">holes are never simply absences · a világ hírei · GDELT</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="stxt">betöltés…</span></div>
+</div></header>
+
+<main>
+  <div class="box">
+    <div class="head">beállítások</div>
+    <div class="sec">
+      <label>kulcsszó</label>
+      <div class="seg" id="kw"></div>
+      <div class="hint">a kulcsszavak listája rögzített (keywords.txt), nem lehet szabadon keresni</div>
+    </div>
+    <div class="sec">
+      <label>időszak</label>
+      <div class="seg" id="span"><button data-v="7">1 hét</button><button data-v="14">2 hét</button><button data-v="28" class="on">4 hét</button><button data-v="9999">mind</button></div>
+      <div class="hint">egy sor = egy nap · egy cella = 15 perc</div>
+    </div>
+    <div class="sec">
+      <div class="row"><button id="bmp">BMP</button></div>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div class="sec">
+      <label>számok</label>
+      <div class="nums" id="nums"></div>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="bar">
+      <div class="seg" id="view"><button data-v="cloth" class="on">szövet</button><button data-v="data">adat</button></div>
+      <span class="meta" id="meta"></span>
+    </div>
+    <div class="cwrap" id="cwrap"><canvas id="cv"></canvas></div>
+  </div>
+
+  <aside class="box label">
+    <div class="lab">címke</div>
+    <div class="big" id="lBig">–</div>
+    <div class="desc" id="lDesc"></div>
+    <div class="lab" id="lHover"></div>
+    <div class="legend">
+      <div class="sw" style="background:#262626"></div><div>volt hír a témáról ebben a negyedórában</div>
+      <div class="sw" style="background:#ececec"></div><div>csend: egy hír sem (lyuk)</div>
+      <div class="sw" style="background:repeating-linear-gradient(90deg,#262626 0 2px,#ececec 2px 4px)"></div><div>nincs adat (a GDELT-nél hiányzik a fájl, vagy még nem gyűlt össze)</div>
+    </div>
+    <div class="ph">címke-szöveg</div>
+    <div class="hint" style="margin-top:12px">Forrás: GDELT Project, GKG 2.1, 15 perces nyers fájlok, angol nyelvű online hírek. A program a cikkek címében és webcímében keres, és csak számokat ment. A szövet a média figyelmét mutatja, nem az eseményeket.</div>
+  </aside>
+</main>
+<div class="tip" id="tip"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const COLS=96,TH=3,PX=3;
+let RAW=null,S={kw:'*',span:28,view:'cloth'},D=null,G=null;
+
+function status(t,c){$('#stxt').textContent=t;$('#dot').className='dot'+(c?' '+c:'');}
+function msg(t){const m=$('#msg');m.textContent=t||'';m.style.display=t?'block':'none';}
+const slotDate=s=>new Date(Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8),+s.slice(8,10),+s.slice(10,12)));
+const dayKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+async function load(){
+  try{
+    const r=await fetch('data/counts.csv?t='+Date.now());
+    if(!r.ok)throw new Error('A data/counts.csv nem érhető el ('+r.status+'). Lehet, hogy a gyűjtő még nem futott le.');
+    const lines=(await r.text()).trim().split('\n');
+    const head=lines[0].split(',');
+    const rows=lines.slice(1).map(l=>{const v=l.split(',');const o={};head.forEach((h,i)=>o[h]=v[i]);return o;});
+    RAW={head,keywords:head.slice(2),rows};
+    buildKw();draw();status('frissítve '+new Date().toLocaleTimeString('hu-HU'),'on');msg('');
+  }catch(e){status('nincs adat','err');msg(e.message+(location.protocol==='file:'?' Ezt az oldalt a GitHub Pages címén kell megnyitni, nem a letöltött fájlból.':''));}
+}
+function buildKw(){
+  const el=$('#kw');if(el.dataset.ready===RAW.keywords.join('|'))return;
+  el.innerHTML=`<button data-v="*" class="${S.kw==='*'?'on':''}">bármelyik</button>`+RAW.keywords.map(k=>`<button data-v="${k}" class="${S.kw===k?'on':''}">${k}</button>`).join('');
+  el.dataset.ready=RAW.keywords.join('|');
+}
+function hitsOf(r){if(r.total===''||r.total===undefined)return null;
+  if(S.kw==='*')return Math.max(0,...RAW.keywords.map(k=>+(r[k]||0)));   // „bármelyik”: a legnagyobb kulcsszavas szám (alsó becslés)
+  return r[S.kw]===''||r[S.kw]===undefined?null:+r[S.kw];}
+
+function build(){
+  const map=new Map(RAW.rows.map(r=>[r.slot,r]));
+  if(!RAW.rows.length)return{days:[],grid:[]};
+  const last=slotDate(RAW.rows[RAW.rows.length-1].slot);
+  let first=slotDate(RAW.rows[0].slot);
+  const minStart=new Date(last.getTime()-S.span*864e5);if(first<minStart)first=minStart;
+  const d0=new Date(first.getFullYear(),first.getMonth(),first.getDate());   // helyi idő szerinti napok
+  const days=[],grid=[];
+  for(let d=new Date(d0);d<=last;d.setDate(d.getDate()+1)){
+    const row=[];
+    for(let c=0;c<COLS;c++){
+      const t=new Date(d.getFullYear(),d.getMonth(),d.getDate(),Math.floor(c/4),(c%4)*15);
+      const s=t.toISOString().replace(/[-:T]/g,'').slice(0,14);
+      const r=map.get(s);
+      if(!r||t>last){row.push({state:'none',t});continue;}
+      const h=hitsOf(r);row.push(h===null?{state:'none',t}:{state:h>0?'hit':'quiet',t,h,total:+r.total});
+    }
+    days.push(new Date(d));grid.push(row);
+  }
+  return{days,grid};
+}
+function satin(y,x,warp){const on=((x*2+y)%5)===0;return warp?(on?0:1):(on?1:0);}
+function threadUp(state,y,x){return state==='hit'?satin(y,x,true):state==='quiet'?satin(y,x,false):(x+y)%2;}
+
+const cv=$('#cv'),g=cv.getContext('2d');
+function draw(){
+  if(!RAW)return;D=build();const rows=D.grid.length;
+  if(!rows){msg('Még nincs adat.');return;}
+  const LW=72,TOP=18,cell=TH*PX,W=LW+COLS*cell+1,H=TOP+rows*cell+1,dpr=devicePixelRatio||1;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#fff';g.fillRect(0,0,W,H);G={LW,TOP,cell,rows,W};
+  g.font='10px ui-monospace,Menlo,monospace';g.textBaseline='top';g.fillStyle='#8a8a8a';
+  for(let h=0;h<24;h+=6)g.fillText(String(h).padStart(2,'0')+':00',LW+h*4*cell,3);
+  for(let r=0;r<rows;r++)for(let c=0;c<COLS;c++){const st=D.grid[r][c].state;
+    if(S.view==='cloth'){for(let i=0;i<TH;i++)for(let j=0;j<TH;j++){const y=r*TH+i,x=c*TH+j;g.fillStyle=threadUp(st,y,x)?'#262626':'#ececec';g.fillRect(LW+x*PX,TOP+y*PX,PX,PX);}}
+    else{const X=LW+c*cell,Y=TOP+r*cell;
+      if(st==='hit'){g.fillStyle='#111';g.fillRect(X,Y,cell,cell);}
+      else if(st==='quiet'){g.strokeStyle='#e2e2e2';g.lineWidth=.5;g.strokeRect(X+.25,Y+.25,cell-.5,cell-.5);}
+      else{g.fillStyle='#f3f3f3';g.fillRect(X,Y,cell,cell);}}}
+  g.fillStyle='#8a8a8a';D.days.forEach((d,r)=>{if(r===0||r===rows-1||d.getDay()===1)g.fillText(dayKey(d).slice(5).replace('-','.')+(d.getDay()===1?' H':''),0,TOP+r*cell-1);});
+  // számok
+  let slots=0,hit=0,arts=0,tot=0,peak=null;
+  D.grid.forEach(row=>row.forEach(c=>{if(c.state==='none')return;slots++;tot+=c.total;if(c.state==='hit'){hit++;arts+=c.h;if(!peak||c.h>peak.h)peak=c;}}));
+  const kwTxt=S.kw==='*'?RAW.keywords.join(', '):S.kw;
+  $('#nums').innerHTML=`<span>napok</span><span>${rows}</span><span>negyedórák adattal</span><span>${slots.toLocaleString('hu-HU')}</span><span>ebből volt hír</span><span>${hit.toLocaleString('hu-HU')}</span><span>kulcsszavas cikk</span><span>${arts.toLocaleString('hu-HU')}</span><span>összes cikk</span><span>${tot.toLocaleString('hu-HU')}</span>`+(peak?`<span>csúcs</span><span>${peak.t.toLocaleString('hu-HU',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}: ${peak.h}</span>`:'');
+  $('#meta').textContent=`${COLS*TH} láncfonal × ${rows*TH} vetülék · 1 sor = 1 nap · 1 cella = 15 perc = ${TH}×${TH} fonal`;
+  const p=slots?hit/slots*100:0;$('#lBig').textContent=p.toFixed(1).replace('.',',')+'%';
+  $('#lDesc').textContent=`A negyedórák ${p.toFixed(1).replace('.',',')}%-ában jelent meg legalább egy angol nyelvű online hír erről: ${kwTxt}. A többi negyedóra csend. Összesen ${arts.toLocaleString('hu-HU')} cikk, a figyelt hírek ${(tot?arts/tot*100:0).toFixed(3).replace('.',',')}%-a.`;
+}
+const tip=$('#tip');
+cv.addEventListener('mousemove',e=>{if(!G)return;const r=cv.getBoundingClientRect(),sc=G.W/r.width,x=(e.clientX-r.left)*sc-G.LW,y=(e.clientY-r.top)*sc-G.TOP,row=Math.floor(y/G.cell),col=Math.floor(x/G.cell);
+  if(row<0||row>=G.rows||col<0||col>=COLS){tip.style.display='none';return;}const c=D.grid[row][col];
+  const t=c.t.toLocaleString('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const txt=c.state==='none'?'nincs adat':c.state==='hit'?`${c.h} cikk a témáról / ${c.total.toLocaleString('hu-HU')} összes`:`csend · ${c.total.toLocaleString('hu-HU')} cikk, egy sem a témáról`;
+  tip.innerHTML=`${t}<br>${txt}`;$('#lHover').innerHTML=`${t}<br>${txt}`;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';});
+cv.addEventListener('mouseleave',()=>tip.style.display='none');
+
+function seg(id,key,num){$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;[...$(id).children].forEach(x=>x.classList.toggle('on',x===b));draw();};}
+seg('#kw','kw');seg('#span','span',true);seg('#view','view');
+
+$('#bmp').onclick=()=>{if(!D||!D.grid.length)return;const M=[];D.grid.forEach((row,r)=>{for(let i=0;i<TH;i++){const y=r*TH+i,o=new Uint8Array(COLS*TH);for(let c=0;c<COLS;c++)for(let j=0;j<TH;j++){const x=c*TH+j;o[x]=threadUp(row[c].state,y,x);}M.push(o);}});
+  const h=M.length,w=M[0].length,rb=Math.ceil(Math.ceil(w/8)/4)*4,size=62+rb*h,buf=new ArrayBuffer(size),v=new DataView(buf);
+  v.setUint8(0,0x42);v.setUint8(1,0x4D);v.setUint32(2,size,true);v.setUint32(10,62,true);v.setUint32(14,40,true);v.setInt32(18,w,true);v.setInt32(22,h,true);
+  v.setUint16(26,1,true);v.setUint16(28,1,true);v.setUint32(34,rb*h,true);v.setInt32(38,2835,true);v.setInt32(42,2835,true);v.setUint32(46,2,true);v.setUint32(50,2,true);
+  [255,255,255,0].forEach((x,i)=>v.setUint8(54+i,x));
+  for(let r=0;r<h;r++){const row=M[h-1-r],off=62+r*rb;for(let j=0;j<w;j++)if(row[j]){const bi=off+(j>>3);v.setUint8(bi,v.getUint8(bi)|(0x80>>(j&7)));}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'image/bmp'}));a.download=`holes-gdelt-${S.kw==='*'?'mind':S.kw.replace(/\s/g,'-')}-${new Date().toISOString().slice(0,10)}.bmp`;document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);};
+
+load();setInterval(load,15*60*1000);
+</script>
+</body>
+</html>

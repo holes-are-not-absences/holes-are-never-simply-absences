@@ -1,0 +1,9 @@
+# Egy sor = egy kulcsszó. A program a cikk címében és webcímében keres, kis- és nagybetű nem számít.
+# A # kezdetű sorokat figyelmen kívül hagyja. Ha módosítod, az új kulcsszó csak onnantól gyűlik.
+deepfake
+nudify
+revenge porn
+intimate image
+sextortion
+cyberstalking
+online harassment
